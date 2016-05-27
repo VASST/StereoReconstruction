@@ -1,26 +1,18 @@
+cmake_minimum_required ( VERSION 2.8.12 )
+project ( vtkGuidedFilter )
 
-PROJECT(GuidedFilter)
-CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
+find_package ( OpenCL REQUIRED )
+find_package ( OpenGL REQUIRED )
 
-FIND_PACKAGE(VTK 6.2 REQUIRED)
-INCLUDE(${VTK_USE_FILE})
+set ( EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin )
+set ( LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/lib )
 
-FIND_PACKAGE(OpenCV)
-INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIR})
+set ( COMMON_INCLUDES ${PROJECT_SOURCE_DIR}/Common)
 
-INCLUDE_DIRECTORIES("..\\src\\inc")
-LINK_LIBRARIES("..\\src\\lib\\OpenCL\\Win32\\OpenCL.lib")
-LINK_LIBRARIES("..\\src\\lib\\glut\\glut32.lib")
+include_directories ( 
+	${OpenCL_INCLUDE_DIR} 
+	${OPENGL_INCLUDE_DIRS} 
+)
 
-FIND_PACKAGE(OpenMP)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /openmp")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /openmp")
+add_subdirectory ( Common )
 
-ADD_EXECUTABLE(${PROJECT_NAME} main.cpp 
-				kernels.cl 
-				utils.cpp utils.h 
-				GuidedFilter.h GuidedFilter.cpp
-				)
-SET_SOURCE_FILES_PROPERTIES(kernels.ocl PROPERTIES HEADER_FILE_ONLY TRUE)
-
-TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${VTK_LIBRARIES} ${PLUSLIB_DEPENDENCIES} ${OpenCV_LIBS})

@@ -1,39 +1,36 @@
-/*==========================================================================
+/*! \file CLUtils.hpp
+ *  \brief Declarations of objects, 
+ *         functions and classes for the CLUtils library.
+ *  \details CLUtils offers utilities that help 
+             setup and manage an OpenCL environment.
+ *  \author Nick Lamprianidis
+ *  \version 0.2.2
+ *  \date 2014-2015
+ *  \copyright The MIT License (MIT)
+ *  \par
+ *  Copyright (c) 2014 Nick Lamprianidis
+ *  \par
+ *  Permission is hereby granted, free of charge, to any person obtaining a copy
+ *  of this software and associated documentation files (the "Software"), to deal
+ *  in the Software without restriction, including without limitation the rights
+ *  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ *  copies of the Software, and to permit persons to whom the Software is
+ *  furnished to do so, subject to the following conditions:
+ *  \par
+ *  The above copyright notice and this permission notice shall be included in
+ *  all copies or substantial portions of the Software.
+ *  \par
+ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ *  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ *  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ *  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ *  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ *  THE SOFTWARE.
+ */
 
-  Copyright (c) 2016 Uditha L. Jayarathne, ujayarat@robarts.ca
-  << This was based on the original implementation by Nick Lamprianidis >> 
-
-  Use, modification and redistribution of the software, in source or
-  binary forms, are permitted provided that the following terms and
-  conditions are met:
-
-  1) Redistribution of the source code, in verbatim or modified
-  form, must retain the above copyright notice, this license,
-  the following disclaimer, and any notices that refer to this
-  license and/or the following disclaimer.  
-
-  2) Redistribution in binary form must include the above copyright
-  notice, a copy of this license and the following disclaimer
-  in the documentation or with other materials provided with the
-  distribution.
-
-  3) Modified copies of the source code must be clearly marked as such,
-  and must not be misrepresented as verbatim copies of the source code.
-
-  THE COPYRIGHT HOLDERS AND/OR OTHER PARTIES PROVIDE THE SOFTWARE "AS IS"
-  WITHOUT EXPRESSED OR IMPLIED WARRANTY INCLUDING, BUT NOT LIMITED TO,
-  THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-  PURPOSE.  IN NO EVENT SHALL ANY COPYRIGHT HOLDER OR OTHER PARTY WHO MAY
-  MODIFY AND/OR REDISTRIBUTE THE SOFTWARE UNDER THE TERMS OF THIS LICENSE
-  BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL OR CONSEQUENTIAL DAMAGES
-  (INCLUDING, BUT NOT LIMITED TO, LOSS OF DATA OR DATA BECOMING INACCURATE
-  OR LOSS OF PROFIT OR BUSINESS INTERRUPTION) ARISING IN ANY WAY OUT OF
-  THE USE OR INABILITY TO USE THE SOFTWARE, EVEN IF ADVISED OF THE
-  POSSIBILITY OF SUCH DAMAGES.
-  =========================================================================*/
-
-#ifndef VTKCLUTILS_HPP
-#define VTKCLUTILS_HPP
+#ifndef CLUTILS_HPP
+#define CLUTILS_HPP
 
 #include <iostream>
 #include <iomanip>
@@ -58,20 +55,20 @@
  *  It offers structures that aim to ease the process of setting up and 
  *  maintaining an OpenCL environment.
  */
-namespace vtkclutils
+namespace clutils
 {
     /*! \brief Returns the name of an error code. */
-    const char* GetOpenCLErrorCodeString (int errorCode);
+    const char* getOpenCLErrorCodeString (int errorCode);
 
     /*! \brief Checks the availability of the "GL Sharing" capability. */
-    bool CheckCLGLInterop (cl::Device &device);
+    bool checkCLGLInterop (cl::Device &device);
 
     /*! \brief Reads in the contents from the requested files. */
-    void ReadSource (const std::vector<std::string> &kernel_filenames, 
+    void readSource (const std::vector<std::string> &kernel_filenames, 
                      std::vector<std::string> &sourceCodes);
 
     /*! \brief Splits a string on the requested delimiter. */
-    void Split (const std::string &str, char delim, 
+    void split (const std::string &str, char delim, 
                 std::vector<std::string> &names);
 
 
@@ -86,35 +83,35 @@ namespace vtkclutils
      *           away all the boilerplate code necessary for establishing 
      *           an OpenCL environment.
      */
-    class vtkCLEnv
+    class CLEnv
     {
     public:
-        vtkCLEnv (const std::vector<std::string> &kernel_filenames = std::vector<std::string> (), 
+        CLEnv (const std::vector<std::string> &kernel_filenames = std::vector<std::string> (), 
                const char *build_options = nullptr); 
-        vtkCLEnv (const std::string &kernel_filename, 
+        CLEnv (const std::string &kernel_filename, 
                const char *build_options = nullptr);
-        virtual ~vtkCLEnv () {};
+        virtual ~CLEnv () {};
         /*! \brief Gets back one of the existing contexts. */
-        cl::Context& GetContext (unsigned int pIdx = 0);
+        cl::Context& getContext (unsigned int pIdx = 0);
         /*! \brief Gets back one of the existing command queues 
          *         in the specified context. */
-        cl::CommandQueue& GetQueue (unsigned int ctxIdx = 0, unsigned int qIdx = 0);
+        cl::CommandQueue& getQueue (unsigned int ctxIdx = 0, unsigned int qIdx = 0);
         /*! \brief Gets back one of the existing programs. */
-        cl::Program& GetProgram (unsigned int pgIdx = 0);
+        cl::Program& getProgram (unsigned int pgIdx = 0);
         /*! \brief Gets back one of the existing kernels in some program. */
-        cl::Kernel& GetKernel (const char *kernelName, unsigned int pgIdx = 0);
+        cl::Kernel& getKernel (const char *kernelName, unsigned int pgIdx = 0);
         /*! \brief Creates a context for all devices in the requested platform. */
-        cl::Context& AddContext (unsigned int pIdx, const bool gl_shared = false);
+        cl::Context& addContext (unsigned int pIdx, const bool gl_shared = false);
         /*! \brief Creates a queue for the specified device in the specified context. */
-        cl::CommandQueue& AddQueue (unsigned int ctxIdx, unsigned int dIdx, cl_command_queue_properties props = 0);
+        cl::CommandQueue& addQueue (unsigned int ctxIdx, unsigned int dIdx, cl_command_queue_properties props = 0);
         /*! \brief Creates a queue for the GL-shared device in the specified context. */
-        cl::CommandQueue& AddQueueGL (unsigned int ctxIdx, cl_command_queue_properties props = 0);
+        cl::CommandQueue& addQueueGL (unsigned int ctxIdx, cl_command_queue_properties props = 0);
         /*! \brief Creates a program for the specified context. */
-        cl::Kernel& AddProgram (unsigned int ctxIdx, 
+        cl::Kernel& addProgram (unsigned int ctxIdx, 
                                 const std::vector<std::string> &kernel_filenames, 
                                 const char *kernel_name = nullptr, 
                                 const char *build_options = nullptr);
-        cl::Kernel& AddProgram (unsigned int ctxIdx, 
+        cl::Kernel& addProgram (unsigned int ctxIdx, 
                                 const std::string &kernel_filename, 
                                 const char *kernel_name = nullptr, 
                                 const char *build_options = nullptr);
@@ -175,7 +172,7 @@ namespace vtkclutils
      *  \tparam nQueues the number of command queue indices to be held by `CLEnvInfo`.
      */
     template<unsigned int nQueues = 1>
-    class vtkCLEnvInfo
+    class CLEnvInfo
     {
     public:
         /*! \brief Initializes a `CLEnvInfo` object.
@@ -188,7 +185,7 @@ namespace vtkclutils
          *  \param[in] _qIdx vector with command queue indices.
          *  \param[in] _pgIdx program index.
          */
-        vtkCLEnvInfo (unsigned int _pIdx = 0, unsigned int _dIdx = 0, unsigned int _ctxIdx = 0, 
+        CLEnvInfo (unsigned int _pIdx = 0, unsigned int _dIdx = 0, unsigned int _ctxIdx = 0, 
                    const std::vector<unsigned int> _qIdx = { 0 }, unsigned int _pgIdx = 0) : 
             pIdx (_pIdx), dIdx (_dIdx), ctxIdx (_ctxIdx), pgIdx (_pgIdx)
         {
@@ -213,13 +210,13 @@ namespace vtkclutils
          *           
          *  \param[in] idx an index for the `qIdx` vector.
          */
-        vtkCLEnvInfo<1> GetCLEnvInfo (unsigned int idx)
+        CLEnvInfo<1> getCLEnvInfo (unsigned int idx)
         {
             try
             {
 				std::vector< unsigned int > v;
 				v.push_back(qIdx.at( idx ));
-                return vtkCLEnvInfo<1> (pIdx, dIdx, ctxIdx, v, pgIdx);
+                return CLEnvInfo<1> (pIdx, dIdx, ctxIdx, v, pgIdx);
             }
             catch (const std::out_of_range &error)
             {
@@ -247,14 +244,14 @@ namespace vtkclutils
      *  \tparam rep the type of the values the class stores and returns.
      */
     template <unsigned int nSize, typename rep = double>
-    class vtkProfilingInfo
+    class ProfilingInfo
     {
     public:
         /*! \param[in] pLabel a label characterizing the test.
          *  \param[in] pUnit a name for the time unit to be printed 
          *                  when displaying the results.
          */
-        vtkProfilingInfo (std::string pLabel = std::string (), std::string pUnit = std::string ("ms")) 
+        ProfilingInfo (std::string pLabel = std::string (), std::string pUnit = std::string ("ms")) 
             : label (pLabel), tExec (nSize), tWidth (4 + log10 (nSize)), tUnit (pUnit)
         {
         }
@@ -308,7 +305,7 @@ namespace vtkclutils
          *  \param[in] refProf a reference test.
          *  \return The factor of execution time decrease.
          */
-        rep speedup (vtkProfilingInfo &refProf)
+        rep speedup (ProfilingInfo &refProf)
         {
             return refProf.mean () / mean ();
         }
@@ -349,7 +346,7 @@ namespace vtkclutils
          *  \param[in] refProf a reference test.
          *  \param[in] title a title for the table of results.
          */
-        void print (vtkProfilingInfo &refProf, const char *title = nullptr)
+        void print (ProfilingInfo &refProf, const char *title = nullptr)
         {
             if (title)
                 std::cout << std::endl << title << std::endl;
@@ -496,4 +493,4 @@ namespace vtkclutils
 
 }
 
-#endif  // VTKCLUTILS_HPP
+#endif  // CLUTILS_HPP

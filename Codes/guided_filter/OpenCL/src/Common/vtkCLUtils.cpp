@@ -1,36 +1,32 @@
-/*==========================================================================
-
-  Copyright (c) 2016 Uditha L. Jayarathne, ujayarat@robarts.ca
-  << This was based on the original implementation by Nick Lamprianidis >> 
-
-  Use, modification and redistribution of the software, in source or
-  binary forms, are permitted provided that the following terms and
-  conditions are met:
-
-  1) Redistribution of the source code, in verbatim or modified
-  form, must retain the above copyright notice, this license,
-  the following disclaimer, and any notices that refer to this
-  license and/or the following disclaimer.  
-
-  2) Redistribution in binary form must include the above copyright
-  notice, a copy of this license and the following disclaimer
-  in the documentation or with other materials provided with the
-  distribution.
-
-  3) Modified copies of the source code must be clearly marked as such,
-  and must not be misrepresented as verbatim copies of the source code.
-
-  THE COPYRIGHT HOLDERS AND/OR OTHER PARTIES PROVIDE THE SOFTWARE "AS IS"
-  WITHOUT EXPRESSED OR IMPLIED WARRANTY INCLUDING, BUT NOT LIMITED TO,
-  THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-  PURPOSE.  IN NO EVENT SHALL ANY COPYRIGHT HOLDER OR OTHER PARTY WHO MAY
-  MODIFY AND/OR REDISTRIBUTE THE SOFTWARE UNDER THE TERMS OF THIS LICENSE
-  BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL OR CONSEQUENTIAL DAMAGES
-  (INCLUDING, BUT NOT LIMITED TO, LOSS OF DATA OR DATA BECOMING INACCURATE
-  OR LOSS OF PROFIT OR BUSINESS INTERRUPTION) ARISING IN ANY WAY OUT OF
-  THE USE OR INABILITY TO USE THE SOFTWARE, EVEN IF ADVISED OF THE
-  POSSIBILITY OF SUCH DAMAGES.
-  =========================================================================*/
+/*! \file CLUtils.cpp
+ *  \brief Definitions of functions and methods for the CLUtils library
+ *  \details CLUtils offers utilities that help 
+ *           setup and manage an OpenCL environment.
+ *  \author Nick Lamprianidis
+ *  \version 0.2.2
+ *  \date 2014-2015
+ *  \copyright The MIT License (MIT)
+ *  \par
+ *  Copyright (c) 2014 Nick Lamprianidis
+ *  \par
+ *  Permission is hereby granted, free of charge, to any person obtaining a copy
+ *  of this software and associated documentation files (the "Software"), to deal
+ *  in the Software without restriction, including without limitation the rights
+ *  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ *  copies of the Software, and to permit persons to whom the Software is
+ *  furnished to do so, subject to the following conditions:
+ *  \par
+ *  The above copyright notice and this permission notice shall be included in
+ *  all copies or substantial portions of the Software.
+ *  \par
+ *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ *  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ *  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ *  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ *  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ *  THE SOFTWARE.
+ */
 
 #include <vector>
 #include <algorithm>
@@ -38,7 +34,7 @@
 #include <fstream>
 #include <sstream>
 #include <chrono>
-#include <vtkCLUtils.hpp>
+#include <CLUtils.hpp>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -49,7 +45,7 @@
 #endif
 
 
-namespace vtkclutils
+namespace clutils
 {
 
     /*! Gets an error code and returns its name.
@@ -57,7 +53,7 @@ namespace vtkclutils
      *  \param[in] errorCode an error code.
      *  \return Its name as a char array.
      */
-    const char* GetOpenCLErrorCodeString (int errorCode)
+    const char* getOpenCLErrorCodeString (int errorCode)
     {
         switch (errorCode)
         {
@@ -188,7 +184,7 @@ namespace vtkclutils
     /*! \param[in] device a device for which to check the "GL Sharing" capability.
      *  \return Returns true if "GL Sharing" is available, false otherwise.
      */
-    bool CheckCLGLInterop (cl::Device &device)
+    bool checkCLGLInterop (cl::Device &device)
     {
         std::string exts = device.getInfo<CL_DEVICE_EXTENSIONS> ();
 
@@ -206,7 +202,7 @@ namespace vtkclutils
      *                              the names of the kernel files (.cl).
      *  \param[out] sourceCodes a vector of strings with the contents of the files.
      */
-    void ReadSource (const std::vector<std::string> &kernel_filenames, 
+    void readSource (const std::vector<std::string> &kernel_filenames, 
                      std::vector<std::string> &sourceCodes)
     {
         std::ifstream programSource;
@@ -235,7 +231,7 @@ namespace vtkclutils
      *  \param[in] delim delimiter on which to split the string.
      *  \param[out] names a vector of all the tokens.
      */
-    void Split (const std::string &str, char delim, 
+    void split (const std::string &str, char delim, 
                 std::vector<std::string> &names)
     {
         std::stringstream ss (str);
@@ -269,7 +265,7 @@ namespace vtkclutils
      *                              the names of the kernel files (.cl).
      *  \param[in] build_options options that are forwarded to the OpenCL compiler.
      */
-    vtkCLEnv::vtkCLEnv (const std::vector<std::string> &kernel_filenames, 
+    CLEnv::CLEnv (const std::vector<std::string> &kernel_filenames, 
                   const char *build_options)
     {
         // Get the list of platforms
@@ -290,7 +286,7 @@ namespace vtkclutils
 
             // Read in the program sources
             std::vector<std::string> sourceCodes;
-			ReadSource(kernel_filenames, sourceCodes);
+            readSource (kernel_filenames, sourceCodes);
 
             // Create a sources object with all kernel files
             cl::Program::Sources sources (sourceCodes.size ());
@@ -308,7 +304,7 @@ namespace vtkclutils
             catch (const cl::Error &error)
             {
                 std::cerr << error.what ()
-                          << " (" << vtkclutils::GetOpenCLErrorCodeString (error.err ()) 
+                          << " (" << clutils::getOpenCLErrorCodeString (error.err ()) 
                           << ")"  << std::endl << std::endl;
                 
                 std::string log = programs[0].getBuildInfo<CL_PROGRAM_BUILD_LOG> (devices[0][0]);
@@ -321,7 +317,7 @@ namespace vtkclutils
             // Note: getInfo returns a ';' delimited string.
             std::string namesString = programs[0].getInfo<CL_PROGRAM_KERNEL_NAMES> ();
             std::vector<std::string> kernel_names;
-            vtkclutils::Split (namesString, ';', kernel_names);
+            clutils::split (namesString, ';', kernel_names);
             
             // Retrieve the kernels from program 0
             kernels.emplace_back ();
@@ -340,11 +336,11 @@ namespace vtkclutils
      *  \param[in] kernel_filename a string with the name of the kernel file (.cl).
      *  \param[in] build_options options that are forwarded to the OpenCL compiler.
      */
-    vtkCLEnv::vtkCLEnv (const std::string &kernel_filename, const char *build_options)
+    CLEnv::CLEnv (const std::string &kernel_filename, const char *build_options)
     {
 		std::vector< std::string > v;
 		v.push_back( kernel_filename );
-		vtkCLEnv::vtkCLEnv (v, build_options);
+		CLEnv::CLEnv (v, build_options);
     }
 
 
@@ -352,7 +348,7 @@ namespace vtkclutils
      *                  Indices follow the order the contexts were created in.
      *  \return The requested context.
      */
-    cl::Context& vtkCLEnv::GetContext (unsigned int pIdx)
+    cl::Context& CLEnv::getContext (unsigned int pIdx)
     {
         try
         {
@@ -373,7 +369,7 @@ namespace vtkclutils
      *                  Indices follow the order the queues were created in.
      *  \return The requested command queue.
      */
-    cl::CommandQueue& vtkCLEnv::GetQueue (unsigned int ctxIdx, unsigned int qIdx)
+    cl::CommandQueue& CLEnv::getQueue (unsigned int ctxIdx, unsigned int qIdx)
     {
         try
         {
@@ -392,7 +388,7 @@ namespace vtkclutils
      *                   Indices follow the order the programs were created in.
      *  \return The requested program.
      */
-    cl::Program& vtkCLEnv::GetProgram (unsigned int pgIdx)
+    cl::Program& CLEnv::getProgram (unsigned int pgIdx)
     {
         try
         {
@@ -412,7 +408,7 @@ namespace vtkclutils
      *                   Indices follow the order the programs were created in.
      *  \return The requested kernel.
      */
-    cl::Kernel& vtkCLEnv::GetKernel (const char *kernel_name, unsigned int pgIdx)
+    cl::Kernel& CLEnv::getKernel (const char *kernel_name, unsigned int pgIdx)
     {
         try
         {
@@ -438,7 +434,7 @@ namespace vtkclutils
      *  \param[in] gl_shared a flag for whether or not to create a GL-shared CL context.
      *  \return A reference to the created context.
      */
-    cl::Context& vtkCLEnv::AddContext (unsigned int pIdx, const bool gl_shared)
+    cl::Context& CLEnv::addContext (unsigned int pIdx, const bool gl_shared)
     {
         try
         {
@@ -487,7 +483,7 @@ namespace vtkclutils
                 cl::Device device (devID);
                 #endif
 
-                if (!CheckCLGLInterop (device))
+                if (!checkCLGLInterop (device))
                     throw cl::Error (CL_INVALID_DEVICE, "CLEnv::addContext");
 
                 props = _props;
@@ -520,7 +516,7 @@ namespace vtkclutils
      *  \param[in] props bitfield to enable command queue properties.
      *  \return A reference to the created queue.
      */
-    cl::CommandQueue& vtkCLEnv::AddQueue (unsigned int ctxIdx, unsigned int dIdx, 
+    cl::CommandQueue& CLEnv::addQueue (unsigned int ctxIdx, unsigned int dIdx, 
                                        cl_command_queue_properties props)
     {
         try
@@ -549,7 +545,7 @@ namespace vtkclutils
      *  \param[in] props bitfield to enable command queue properties.
      *  \return A reference to the created queue.
      */
-    cl::CommandQueue& vtkCLEnv::AddQueueGL (unsigned int ctxIdx, cl_command_queue_properties props)
+    cl::CommandQueue& CLEnv::addQueueGL (unsigned int ctxIdx, cl_command_queue_properties props)
     {
         try
         {
@@ -591,7 +587,7 @@ namespace vtkclutils
      *  \return The requested kernel. If kernel_name is NULL, the first kernel 
      *          of the program gets returned.
      */
-    cl::Kernel& vtkCLEnv::AddProgram (unsigned int ctxIdx, 
+    cl::Kernel& CLEnv::addProgram (unsigned int ctxIdx, 
                                    const std::vector<std::string> &kernel_filenames, 
                                    const char *kernel_name, const char *build_options)
     {
@@ -599,7 +595,7 @@ namespace vtkclutils
         {
             // Read in the program sources
             std::vector<std::string> sourceCodes;
-            ReadSource (kernel_filenames, sourceCodes);
+            readSource (kernel_filenames, sourceCodes);
 
             // Create a sources object with all kernel files
             cl::Program::Sources sources (sourceCodes.size ());
@@ -621,7 +617,7 @@ namespace vtkclutils
             catch (const cl::Error &error)
             {
                 std::cerr << error.what ()
-                          << " (" << vtkclutils::GetOpenCLErrorCodeString (error.err ()) 
+                          << " (" << clutils::getOpenCLErrorCodeString (error.err ()) 
                           << ")"  << std::endl << std::endl;
                 
                 std::string log = programs[pgIdx].getBuildInfo<CL_PROGRAM_BUILD_LOG> (devs[0]);
@@ -634,7 +630,7 @@ namespace vtkclutils
             // Note: getInfo returns a ';' delimited string.
             std::string namesString = programs[pgIdx].getInfo<CL_PROGRAM_KERNEL_NAMES> ();
             std::vector<std::string> kernel_names;
-            vtkclutils::Split (namesString, ';', kernel_names);
+            clutils::split (namesString, ';', kernel_names);
             
             // Retrieve the kernels from the newly created program
             kernels.emplace_back ();
@@ -646,9 +642,9 @@ namespace vtkclutils
             }
 
             if (kernel_name == nullptr)
-                return GetKernel (kernel_names.at (0).c_str (), pgIdx);
+                return getKernel (kernel_names.at (0).c_str (), pgIdx);
             else
-                return GetKernel (kernel_name, pgIdx);
+                return getKernel (kernel_name, pgIdx);
         }
         catch (const std::out_of_range &error)
         {
@@ -668,13 +664,13 @@ namespace vtkclutils
      *          of the program gets returned.
      *  \sa addProgram
      */
-    cl::Kernel& vtkCLEnv::AddProgram (unsigned int ctxIdx, 
+    cl::Kernel& CLEnv::addProgram (unsigned int ctxIdx, 
                                    const std::string &kernel_filename, 
                                    const char *kernel_name, const char *build_options)
     {
 		std::vector< std::string > v;
 		v.push_back(kernel_filename);
-        return AddProgram (ctxIdx, v, 
+        return addProgram (ctxIdx, v, 
                            kernel_name, build_options);
     }
 

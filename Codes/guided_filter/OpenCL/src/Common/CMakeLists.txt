@@ -1,13 +1,13 @@
-add_library ( vtkCLUtils STATIC vtkCLUtils.cpp vtkCLUtils.hpp)
+add_library ( Common STATIC vtkCLUtils.cpp vtkCLUtils.hpp)
 
 target_link_libraries ( 
-	vtkCLUtils 
+	Common 
 	${OPENCL_LIBRARIES} 
 	${OPENGL_LIBRARIES} 
 )
 
 target_include_directories ( 
-	vtkCLUtils PUBLIC 
+	Common PUBLIC 
 	${COMMON_INCLUDES} 
 )
 

@@ -2,6 +2,7 @@ cmake_minimum_required ( VERSION 2.8.12 )
 project ( vtkGuidedFilter )
 
 option ( BUILD_TESTS "Build tests" OFF )
+option ( BUILD_EXAMPLES "Build examples" OFF)
 
 find_package ( OpenCL REQUIRED )
 find_package ( OpenGL REQUIRED )
@@ -33,3 +34,7 @@ if ( BUILD_TESTS )
     add_subdirectory ( Tests )
 endif ( BUILD_TESTS )
 
+if( BUILD_EXAMPLES )
+	 
+	 add_subdirectory( Examples )
+endif( BUILD_EXAMPLES )

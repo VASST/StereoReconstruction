@@ -34,8 +34,7 @@
 #include <fstream>
 #include <sstream>
 #include <chrono>
-#include <CLUtils.hpp>
-
+#include <vtkCLUtils.hpp>
 #if defined(_WIN32)
 #include <windows.h>
 #elif defined(__linux__)
@@ -280,7 +279,7 @@ namespace clutils
             // Create a context for those devices (in platform 0)
             contexts.emplace_back (devices[0]);
 
-            // Create a command queue for device 0 in platform 0
+            // Create a command queue for device 1 in platform 0
             queues.emplace_back ();
             queues[0].emplace_back (contexts[0], devices[0][0]);
 

@@ -125,6 +125,7 @@ int main (int argc, char **argv)
         fRGB.init (width, height, cl_algo::GF::Staging::O);
 
         // Copy data to device
+		auto t_start = std::chrono::high_resolution_clock::now();
         rgb.write (cl_algo::GF::SeparateRGB<C1>::Memory::D_IN, (void*)image.datastart);
 
         // Execute kernels
@@ -138,6 +139,12 @@ int main (int argc, char **argv)
         
         // Copy results to host
         cl_float *results = (cl_float *) fRGB.read ();
+
+		// End time
+		auto t_end = std::chrono::high_resolution_clock::now();
+		std::cout << "Elapsed time  : "
+              << std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start).count()
+              << " us." << std::endl;
 
         cv::namedWindow (WinIDIn, cv::WINDOW_AUTOSIZE);
         cv::imshow (WinIDIn, image);

@@ -211,7 +211,7 @@ namespace clutils
             for (auto &fName : kernel_filenames)
             {
                 programSource.exceptions (std::ifstream::failbit | std::ifstream::badbit);
-                programSource.open (fName);
+                programSource.open (fName, std::ios_base::end);
                 sourceCodes.emplace_back (std::istreambuf_iterator<char> (programSource), 
                                          (std::istreambuf_iterator<char> ()));
                 programSource.close ();
@@ -279,9 +279,9 @@ namespace clutils
             // Create a context for those devices (in platform 0)
             contexts.emplace_back (devices[0]);
 
-            // Create a command queue for device 1 in platform 0
+            // Create a command queue for device 0 in platform 0
             queues.emplace_back ();
-            queues[0].emplace_back (contexts[0], devices[0][0]);
+            queues[0].emplace_back (contexts[0], devices[0][1]);
 
             // Read in the program sources
             std::vector<std::string> sourceCodes;
@@ -294,7 +294,7 @@ namespace clutils
 
             // Create a program object from the source codes, targeting context 0
             programs.emplace_back (contexts[0], sources);
-
+			//std::cout << programs[0].getInfo<CL_PROGRAM_SOURCE>();
             try
             {
                 // Build the program for all devices in context 0 (platform 0)
@@ -306,7 +306,7 @@ namespace clutils
                           << " (" << clutils::getOpenCLErrorCodeString (error.err ()) 
                           << ")"  << std::endl << std::endl;
                 
-                std::string log = programs[0].getBuildInfo<CL_PROGRAM_BUILD_LOG> (devices[0][0]);
+                std::string log = programs[0].getBuildInfo<CL_PROGRAM_BUILD_LOG> (devices[0][1]);
                 std::cout << log << std::endl;
 
                 exit (EXIT_FAILURE);

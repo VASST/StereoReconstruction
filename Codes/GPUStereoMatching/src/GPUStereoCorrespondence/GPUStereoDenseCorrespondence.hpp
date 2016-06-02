@@ -50,6 +50,8 @@ public:
 
 private:
 
+	/* Squared Euclidean distance */
+	double squared_distance(int, int, int, int) const;
 };
 
 

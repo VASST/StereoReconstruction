@@ -31,8 +31,6 @@
   POSSIBILITY OF SUCH DAMAGES.
   =========================================================================*/
 
-
-
 #include "GPUStereoDenseCorrespondence.hpp"
 
 //---------------------------------------------------------------------------------------------------
@@ -46,4 +44,10 @@ GPUStereoDenseCorrespondence::GPUStereoDenseCorrespondence()
 GPUStereoDenseCorrespondence::~GPUStereoDenseCorrespondence()
 {
 
+}
+
+//------------------------------------------------------------------------------------------------------
+double GPUStereoDenseCorrespondence::squared_distance(int x1, int y1, int x2, int y2) const
+{
+	return 0;
 }

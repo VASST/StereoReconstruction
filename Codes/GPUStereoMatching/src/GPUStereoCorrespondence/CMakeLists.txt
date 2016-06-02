@@ -5,6 +5,7 @@ add_library ( ${PROJECT_NAME} GPUStereoDenseCorrespondence.cpp GPUStereoDenseCor
 target_link_libraries ( 
 	${PROJECT_NAME}
 	${OpenCL_LIBRARIES}
+	Common
 )
 
 include_directories ( ${Common_INCLUDES} )

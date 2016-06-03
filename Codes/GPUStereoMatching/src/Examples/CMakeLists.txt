@@ -9,7 +9,7 @@ include_directories( ${Filters_INCLUDES} )
 
 add_executable(GPU_StereoMatcher_Example stereo_main.cpp)
 
-target_link_libraries( GPU_StereoMatcher_Example Common GPUStereoCorrespondence ${OpenCV_LIBRARIES} ${OpenCL_LIBRARIES} )
+target_link_libraries( GPU_StereoMatcher_Example Common Filters GPUStereoCorrespondence ${OpenCV_LIBRARIES} ${OpenCL_LIBRARIES} )
 
 add_executable( GPU_GuidedFilter_Example guided_filter_main.cpp)
 

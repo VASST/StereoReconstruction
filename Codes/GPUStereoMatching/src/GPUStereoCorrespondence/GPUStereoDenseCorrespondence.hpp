@@ -36,22 +36,80 @@
 
 #include <vtkCLUtils.hpp>
 
-
 class GPUStereoDenseCorrespondence
 {
 public:
-	/* Default constructor */ 
-	GPUStereoDenseCorrespondence();
-	
-	/* Default destructor */
+	/*! \brief Enumerates the memory objects handled by the class.
+     *  \note `H_*` names refer to staging buffers on the host.
+     *  \note `D_*` names refer to buffers on the device.
+     */
+     enum class Memory : uint8_t
+    {
+          H_IN,   /*!< Input staging buffer. */
+          H_OUT,  /*!< Output staging buffer. */
+          D_IN,   /*!< Input buffer. */
+          D_OUT,  /*!< Output buffer. */
+    };
+
+	/*! \brief Enumerates staging buffer configurations.
+     *  \details It's meant to be used when making a call to the `init` 
+     *           method of one of the `cl_algo` classes. 
+     *           It specifies which staging buffers to be instantiated.
+     */
+    enum class Staging : uint8_t
+    {
+        NONE,  /*!< Do not instantiate any staging buffers. */
+        I,     /*!< Instantiate the input staging buffers. */
+        O,     /*!< Instantiate the output staging buffers. */
+        IO     /*!< Instantiate both input and output staging buffers. */
+    };
+	 
+	/*! \brief Configures an OpenCL environment as specified by `_info`. */
+    GPUStereoDenseCorrespondence (clutils::CLEnv &_env, clutils::CLEnvInfo<1> _info);
+
+	/*! \brief Default destructor */
 	~GPUStereoDenseCorrespondence();
+        
+	/*! \brief Returns a reference to an internal memory object. */
+    cl::Memory& get (GPUStereoDenseCorrespondence::Memory mem);
+        
+	/*! \brief Configures kernel execution parameters. */
+    void init (int _width, int _height, Staging _staging = Staging::IO);
 
+    /*! \brief Performs a data transfer to a device buffer. */
+    void write (GPUStereoDenseCorrespondence::Memory mem = GPUStereoDenseCorrespondence::Memory::D_IN, void *ptr = nullptr, bool block = CL_FALSE, 
+                    const std::vector<cl::Event> *events = nullptr, cl::Event *event = nullptr);
+        
+	/*! \brief Performs a data transfer to a staging buffer. */
+    void* read (GPUStereoDenseCorrespondence::Memory mem = GPUStereoDenseCorrespondence::Memory::H_OUT, bool block = CL_TRUE, 
+                    const std::vector<cl::Event> *events = nullptr, cl::Event *event = nullptr);
+        
+	/*! \brief Executes the necessary kernels. */
+    void run (const std::vector<cl::Event> *events = nullptr, cl::Event *event = nullptr);
 
+	cl_float *hPtrIn;  /*!< Mapping of the input staging buffer. */
+    cl_float *hPtrOut;  /*!< Mapping of the output staging buffer. */
 
 private:
+	clutils::CLEnv &env;
+    clutils::CLEnvInfo<1> info;
+    cl::Context context;
+    cl::CommandQueue queue0;
+    cl::Kernel del_x;
+    cl::NDRange global;
+    Staging staging;
+    unsigned int width, height, bufferSize;
+    cl::Buffer hBufferIn, hBufferOut;
+    cl::Buffer dBufferIn, dBufferOut;
+    cl::Event delx_event;
+    std::vector<cl::Event> waitList_delx;
+
 
 	/* Squared Euclidean distance */
 	double squared_distance(int, int, int, int) const;
+
+	/*! \brief Build Cost Volume */
+	void BuildCostVolume(); // computed per pixels. Hence can be implemented in the GPU. 
 };
 
 

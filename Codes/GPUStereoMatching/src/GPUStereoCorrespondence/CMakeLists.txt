@@ -6,6 +6,7 @@ target_link_libraries (
 	${PROJECT_NAME}
 	${OpenCL_LIBRARIES}
 	Common
+	Filters
 )
 
 include_directories ( ${Common_INCLUDES} )

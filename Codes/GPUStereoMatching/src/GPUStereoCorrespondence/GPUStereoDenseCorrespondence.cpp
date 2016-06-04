@@ -206,8 +206,12 @@ void GPUStereoDenseCorrespondence::init(int _width, int _height, Staging _stagin
     if (dBufferOut () == nullptr)
         dBufferOut = cl::Buffer (context, CL_MEM_WRITE_ONLY, bufferSize);
 
-	// Set workspaces (common to both own kernels: ab, q)
-    global = cl::NDRange (width * height / 4);
+	del_x.setArg( 0, dBufferIn );
+	del_x.setArg( 1, dBufferOut );
+
+
+	// Set workspaces
+    global = cl::NDRange (width, height);
 }
 
 //-------------------------------------------------------------------------------------------------------
@@ -218,8 +222,16 @@ void GPUStereoDenseCorrespondence::init(int _width, int _height, Staging _stagin
  */
 void GPUStereoDenseCorrespondence::run (const std::vector<cl::Event> *events, cl::Event *event)
 {
-    queue0.enqueueNDRangeKernel (del_x, cl::NullRange, global, cl::NullRange, &waitList_delx, &delx_event);
-    waitList_delx[0] = delx_event;
+	try
+	{
+		cl_int err = queue0.enqueueNDRangeKernel (del_x, cl::NullRange, global, cl::NullRange);
+		waitList_delx[0] = delx_event;
+	}
+	catch (const char *error)
+    {
+        std::cerr << "Error[GPUStereoDenseCorrespondence]: " << error << std::endl;
+        exit (EXIT_FAILURE);
+	}
 }
 
 

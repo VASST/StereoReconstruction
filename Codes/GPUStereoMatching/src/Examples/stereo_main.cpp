@@ -52,10 +52,11 @@ int main(int argc, char* argv)
 
 	// Setup CL environment
 	std::vector< std::string > kernel_file;
-	kernel_file.push_back("../Kernels/GPUStereoDenseCorrespondence.cl"); // Filter kernels
+	kernel_file.push_back("../Kernels/vtkGuidedFilter.cl"); // Filter kernels
 	
 	clutils::CLEnv clEnv( kernel_file );
 	cl::Context context = clEnv.getContext(); 
+	clEnv.addQueue (0, 0);  // Adds a second queue
 
 	// Configure kernel execution parameters
 	std::vector<unsigned int> v;
@@ -75,7 +76,7 @@ int main(int argc, char* argv)
 	GPUStereoDenseCorrespondence DS( clEnv, infoDS);
 	DS.get( GPUStereoDenseCorrespondence::Memory::D_IN) = rgb.get(cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_R);
 	DS.get( GPUStereoDenseCorrespondence::Memory::D_OUT) = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize);
-	DS.init( width, height, GPUStereoDenseCorrespondence::Staging::NONE); 
+	DS.init( width, height, GPUStereoDenseCorrespondence::Staging::O); 
 
 
 	auto t_start = std::chrono::high_resolution_clock::now();
@@ -101,6 +102,8 @@ int main(int argc, char* argv)
 	cv::moveWindow("Left_Image", 0, 0);
 	cv::imshow("Right_Image", imgR);
 	cv::moveWindow("Right_Image", width, 0);
+	cv::imshow("Del_X", cv::Mat(height, width, CV_32FC1, results));
+	cv::moveWindow("Del_X", 2*width, 0);
 
 	cv::waitKey(0);
 

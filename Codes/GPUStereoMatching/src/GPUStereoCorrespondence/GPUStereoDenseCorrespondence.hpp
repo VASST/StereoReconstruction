@@ -103,14 +103,6 @@ private:
     cl::Buffer dBufferIn, dBufferOut;
     cl::Event delx_event;
     std::vector<cl::Event> waitList_delx;
-
-
-	/* Squared Euclidean distance */
-	double squared_distance(int, int, int, int) const;
-
-	/*! \brief Build Cost Volume */
-	void BuildCostVolume(); // computed per pixels. Hence can be implemented in the GPU. 
 };
-
 
 #endif //GPUSTEREODENSECORRESPONDENCE_HPP

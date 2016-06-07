@@ -50,6 +50,17 @@ int main(int argc, char* argv)
 	const unsigned int width(imgL.cols), height(imgL.rows);
 	const unsigned int bufferSize = width * height * sizeof (cl_float);
 
+	/* CPU DX computation */
+	cv::Mat bgr[3];
+	cv::split(imgL, bgr);
+	cv::Mat out( width, height, CV_32FC1);
+	cv::Sobel( bgr[0], out, CV_32FC1, 1, 0);
+	cv::imwrite("Del_x.png", out);
+	/*--------------------------------------------------------------------------------------------- */
+
+	// TODO 
+	// Gaussian smooth the image to improve derivative computation. 
+
 	// Setup CL environment
 	std::vector< std::string > kernel_file;
 	kernel_file.push_back("../Kernels/vtkGuidedFilter.cl"); // Filter kernels

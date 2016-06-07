@@ -233,11 +233,3 @@ void GPUStereoDenseCorrespondence::run (const std::vector<cl::Event> *events, cl
         exit (EXIT_FAILURE);
 	}
 }
-
-
-
-//------------------------------------------------------------------------------------------------------
-double GPUStereoDenseCorrespondence::squared_distance(int x1, int y1, int x2, int y2) const
-{
-	return 0;
-}

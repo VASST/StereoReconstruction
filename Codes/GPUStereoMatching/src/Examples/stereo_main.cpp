@@ -35,7 +35,8 @@
 #include <vector> 
 #include <vtkCLUtils.hpp>
 
-#include <GPUStereoDenseCorrespondence.hpp>
+#include <GradientFilter.hpp>
+#include <CostVolume.hpp>
 #include <vtkGuidedFilterAlgo.hpp>
 
 // Opencv includes
@@ -72,36 +73,77 @@ int main(int argc, char* argv)
 	// Configure kernel execution parameters
 	std::vector<unsigned int> v;
 	v.push_back( 0 );
-    clutils::CLEnvInfo<1> infoRGB (0, 0, 0, v, 0);
+    clutils::CLEnvInfo<1> infoRGB_L (0, 0, 0, v, 0);
     const cl_algo::GF::SeparateRGBConfig C1 = cl_algo::GF::SeparateRGBConfig::UCHAR_FLOAT;
-    cl_algo::GF::SeparateRGB<C1> rgb (clEnv, infoRGB);
-    rgb.get (cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_R) = cl::Buffer (context, CL_MEM_READ_WRITE, bufferSize);
-    rgb.get (cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_G) = cl::Buffer (context, CL_MEM_READ_WRITE, bufferSize);
-    rgb.get (cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_B) = cl::Buffer (context, CL_MEM_READ_WRITE, bufferSize);
-    rgb.init (width, height, cl_algo::GF::Staging::I);
+    cl_algo::GF::SeparateRGB<C1> rgb_L (clEnv, infoRGB_L);
+    rgb_L.get (cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_R) = cl::Buffer (context, CL_MEM_READ_WRITE, bufferSize);
+    rgb_L.get (cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_G) = cl::Buffer (context, CL_MEM_READ_WRITE, bufferSize);
+    rgb_L.get (cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_B) = cl::Buffer (context, CL_MEM_READ_WRITE, bufferSize);
+    rgb_L.init (width, height, cl_algo::GF::Staging::I);
 
-	// Configure kernel execution parameters for Dense Stereo (DS)
 	std::vector<unsigned int> v2;
 	v2.push_back( 0 );
-    clutils::CLEnvInfo<1> infoDS (0, 0, 0, v2, 0);
-	GPUStereoDenseCorrespondence DS( clEnv, infoDS);
-	DS.get( GPUStereoDenseCorrespondence::Memory::D_IN) = rgb.get(cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_R);
-	DS.get( GPUStereoDenseCorrespondence::Memory::D_OUT) = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize);
-	DS.init( width, height, GPUStereoDenseCorrespondence::Staging::O); 
+	clutils::CLEnvInfo<1> infoRGB_R (0, 0, 0, v2, 0);
+	cl_algo::GF::SeparateRGB<C1> rgb_R (clEnv, infoRGB_R);
+    rgb_R.get (cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_R) = cl::Buffer (context, CL_MEM_READ_WRITE, bufferSize);
+    rgb_R.get (cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_G) = cl::Buffer (context, CL_MEM_READ_WRITE, bufferSize);
+    rgb_R.get (cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_B) = cl::Buffer (context, CL_MEM_READ_WRITE, bufferSize);
+    rgb_R.init (width, height, cl_algo::GF::Staging::IO);
+
+	// Configure kernel execution parameters for Dense Stereo (GradF_L/R)
+	std::vector<unsigned int> v3;
+	v3.push_back( 0 );
+    clutils::CLEnvInfo<1> infoGradF_L (0, 0, 0, v3, 0);
+	GradientFilter GradF_L( clEnv, infoGradF_L);
+	GradF_L.get( GradientFilter::Memory::D_IN) = rgb_L.get(cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_R);
+	GradF_L.get( GradientFilter::Memory::D_OUT) = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize);
+	GradF_L.init( width, height, GradientFilter::Staging::O); 
+
+	std::vector<unsigned int> v4;
+	v4.push_back( 0 );
+    clutils::CLEnvInfo<1> infoGradF_R (0, 0, 0, v4, 0);
+	GradientFilter GradF_R( clEnv, infoGradF_R);
+	GradF_R.get( GradientFilter::Memory::D_IN) = rgb_R.get(cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_R);
+	GradF_R.get( GradientFilter::Memory::D_OUT) = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize);
+	GradF_R.init( width, height, GradientFilter::Staging::O); 
+
+	// Configure CostVolume (CV)
+	std::vector<unsigned int> v5;
+	v5.push_back( 0 );
+	clutils::CLEnvInfo<1> infoCV( 0, 0, 0, v5, 0);
+	CostVolume CV( clEnv, infoCV);
+	CV.get ( CostVolume::Memory::D_IN_LR ) = rgb_L.get( cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_R);
+	CV.get ( CostVolume::Memory::D_IN_LG ) = rgb_L.get( cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_G);
+	CV.get ( CostVolume::Memory::D_IN_LB ) = rgb_L.get( cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_B);
+	CV.get ( CostVolume::Memory::D_IN_LGRAD ) = GradF_L.get( GradientFilter::Memory::D_OUT);
+	CV.get ( CostVolume::Memory::D_IN_RR ) = rgb_R.get( cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_R);
+	CV.get ( CostVolume::Memory::D_IN_RG ) = rgb_R.get( cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_G);
+	CV.get ( CostVolume::Memory::D_IN_RB ) = rgb_R.get( cl_algo::GF::SeparateRGB<C1>::Memory::D_OUT_B);
+	CV.get ( CostVolume::Memory::D_IN_RGRAD ) = GradF_R.get( GradientFilter::Memory::D_OUT);
+	CV.init( width, height, 5, 30, 7, 2, 0.1, CostVolume::Staging::O);
+
+	// TODO
 
 
 	auto t_start = std::chrono::high_resolution_clock::now();
 	// Copy data to device
-	rgb.write (cl_algo::GF::SeparateRGB<C1>::Memory::D_IN, (void*)imgL.datastart);
+	rgb_L.write (cl_algo::GF::SeparateRGB<C1>::Memory::D_IN, (void*)imgL.datastart);
+	rgb_R.write (cl_algo::GF::SeparateRGB<C1>::Memory::D_IN, (void*)imgR.datastart);
         
 	// Execute kernels	   
-	cl::Event event;
-    std::vector<cl::Event> waitList (1);
-    rgb.run (nullptr, &event); waitList[0] = event;
-	DS.run( &waitList );
+	cl::Event eventL, eventR;
+    std::vector<cl::Event> waitListL (1), waitListR (1);
+    rgb_L.run (nullptr, &eventL); waitListL[0] = eventL;
+	rgb_R.run(nullptr, &eventR); waitListR[0] = eventR;
+	GradF_L.run( &waitListL );
+	GradF_R.run( &waitListR );
+	CV.run ();
 
 	// Copy results to host
-    cl_float *results = (cl_float *) DS.read ();
+    cl_float *left_gradient = (cl_float *) GradF_L.read ();
+	cl_float *right_gradient = (cl_float *) GradF_R.read ();
+	cl_float *cost_out = (cl_float *)CV.read ();
+	//cl_float *debug_out = (cl_float *)rgb_R.read (cl_algo::GF::SeparateRGB<C1>::Memory::H_OUT_B );
 
 	// End time
 	auto t_end = std::chrono::high_resolution_clock::now();
@@ -113,11 +155,31 @@ int main(int argc, char* argv)
 	cv::moveWindow("Left_Image", 0, 0);
 	cv::imshow("Right_Image", imgR);
 	cv::moveWindow("Right_Image", width, 0);
-	cv::imshow("Del_X", cv::Mat(height, width, CV_32FC1, results));
-	cv::moveWindow("Del_X", 2*width, 0);
+	cv::imshow("Left_Gradient(x)", cv::Mat(height, width, CV_32FC1, left_gradient));
+	cv::moveWindow("Left_Gradient(x)", 2*width, 0);
+	cv::imshow("Right_Gradient(x)", cv::Mat(height, width, CV_32FC1, right_gradient));
+	cv::moveWindow("Right_Gradient(x)", 3*width, 0);
+
+	int cost_slice_num = 20;
+	cl_float *cost_slice_mem = new float[ width*height ];
+	memcpy(cost_slice_mem, cost_out + width*height*cost_slice_num, sizeof(cl_float)*width*height); 
+	cv::Mat cost(height, width, CV_32FC1, cost_slice_mem);
+
+	/*double min, max;
+	cv::minMaxIdx(cost, &min, &max);
+	cv::Mat adj;
+	cost.convertTo( adj, CV_8UC1, 255/max);*/
+
+	cv::imshow("Cost", cost );
+	cv::moveWindow("Cost", 4*width, 0);
+
+	/* For debugging */
+	//cv::imshow("Debug", cv::Mat(height, width, CV_32FC1, debug_out));
 
 	cv::waitKey(0);
 
+	// Release memory
+	delete cost_slice_mem;
 
 	return 0;
 }

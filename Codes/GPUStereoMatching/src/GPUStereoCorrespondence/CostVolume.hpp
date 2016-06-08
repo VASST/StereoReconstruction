@@ -59,6 +59,8 @@ public:
 		  D_IN_RR,   /*!< Input buffer for right image channel R. */
 		  D_IN_RG,   /*!< Input buffer for right image channel G. */
 		  D_IN_RB,   /*!< Input buffer for right image channel B. */
+		  D_IN_LGRAD, /*!< Input buffer for left image gradient. */
+		  D_IN_RGRAD, /*!< Input buffer for right image gradient. */
           D_OUT,  /*!< Output buffer. */
     };
 
@@ -85,7 +87,7 @@ public:
     cl::Memory& get (CostVolume::Memory mem);
         
 	/*! \brief Configures kernel execution parameters. */
-    void init (int _width, int _height, int _d_levels, Staging _staging = Staging::IO);
+    void init (int _width, int _height, int _d_min, int _d_max, int _cth, int _gth, double _alpha, Staging _staging = Staging::IO);
 
     /*! \brief Performs a data transfer to a device buffer. */
     void write (CostVolume::Memory mem = CostVolume::Memory::D_IN_LR, void *ptr = nullptr, bool block = CL_FALSE, 
@@ -124,7 +126,7 @@ private:
 
 	/* Parameters for cost construction */
 	double color_th, grad_th, alpha;
-	unsigned int d_levels;
+	unsigned int d_min, d_max;
 };
 
 #endif // COSTVOLUME_HPP

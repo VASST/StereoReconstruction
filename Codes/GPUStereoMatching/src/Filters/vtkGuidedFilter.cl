@@ -968,3 +968,126 @@ void gf_ab_Ip (global float4 *var_I, global float4 *cov_Ip,
     a[gX] = a_;
     b[gX] = mean_p[gX] - a_ * mean_I[gX];
 }
+
+/*! \brief Performs computation of the derivative along x direction. 
+*  \param[in] p_in input array of float elements.
+*  \param[out] out output (derivative) array of `float` elements.
+*/
+kernel
+void x_gradient (global float *p_in, global float *p_out)
+{
+    // Workspace dimensions
+    const int gXdim = get_global_size (0);
+
+    // Workspace indices
+    const int gX = get_global_id (0);
+    const int gY = get_global_id (1);
+
+    // Filter window coordinates
+	int lidx = gX-1;
+	int ridx = gX+1;
+
+	// Output
+	p_out[ gY*gXdim + gX ] = select( 0.f, .5f*p_in[ gY*gXdim + ridx ] - .5f*p_in[ gY*gXdim + lidx], 
+									islessequal (0.f,  (float)lidx) && islessequal ( (float)ridx , (float)gXdim) ) ; 
+} 
+
+
+/*! \brief Performs sobel filtering along x and y directions.
+ * \param[in] src input array of float elements.
+ * \param[out] dst output array of 'float' elements. 
+ * \param[in] mode input argument specifying whether to compute Gx, Gy, or G = sqrt(Gx.^2+Gy.^2)
+ */
+kernel
+void sobel(global float *src, global float *dst, int mode)
+{
+    // Workspace dimensions
+    const int gXdim = get_global_size (0);
+
+    // Workspace indices
+    const int gX = get_global_id (0);
+    const int gY = get_global_id (1);
+
+	switch( mode )
+	{
+	case 0:
+		break;
+
+	case 1:
+		break;
+
+	case 2:
+		break;
+	}
+
+	dst[ gY*gXdim + gX ] = 0.f;
+}
+
+/*! \brief Performs color cost computation per work-item
+ * \param[in] colorL vector of 3 colors of the left image
+ * \param[in] colorR vectgor of 3 colors of the right image
+ */
+float color_cost( float3 colorL, float3 colorR, float MAX_COST )
+{
+	// Refer to this article for better color differences https://en.wikipedia.org/wiki/Color_difference
+	// Use Lab color space instread for improved performance. 
+	float cost = dot( fabs(colorL - colorR), (float3)(1))/3.0f; 
+	return select( cost, MAX_COST, isgreater( cost, MAX_COST ) );
+}
+
+/*! \brief Performs gradient cost computation per work-item
+ * \param[in] gradL floating point gradient value of the left image
+ * \pram[in] gradR floating point gradient value of the right image
+ */
+float grad_cost( float gradL, float gradR, float MAX_COST )
+{
+	float cost = fabs( gradL - gradR );
+	return select( cost, MAX_COST, isgreater( cost, MAX_COST ) );
+}
+
+/*! \brief Performs computation of cost volume . 
+ * \param[in] Lr input array of r channel of the left image
+ * \param[in] Lg input array of g channel of the left image
+ * \param[in] Lb input array of b channel of the left image
+ * \param[in] Rr input array of r channel of the right image
+ * \param[in] Rg input array of g channel of the right image
+ * \param[in] Rb input array of b channel of the right image
+ * \param[in] gradL input array of the gradient of the left image
+ * \param[in] gradR input array of the gradient of the right image
+ * \param[out] out output array of the computed costs at different disparities. Is of size width*height*d
+ * \param[in] in d input levels of disparities
+ * \param[in] color_th input color threshold
+ * \param[in] grad_th input gradient threshold
+ */
+kernel
+void compute_cost(global float *Lr, global float *Lg, global float *Lb, 
+					global float *Rr, global float *Rg, global float *Rb, 
+					 global float *gradL, global float *gradR, global float *out, 
+					 int d_min, int d_max, float color_th, float grad_th, float alpha)
+{
+    // Workspace dimensions
+    const int gXdim = get_global_size (0);
+	const int gYdim = get_global_size (1);
+
+    // Workspace indices
+    const int gX = get_global_id (0);
+    const int gY = get_global_id (1);
+
+	// Loop for all disparity levels d
+	for( int d = d_min; d<=d_max; d++ )
+	{
+		// Color cost
+		float C_color = select(color_th, 
+						 color_cost( (float3)(Lr[ gY*gXdim + gX ], Lg[ gY*gXdim + gX ], Lb[ gY*gXdim + gXdim ]), 
+											(float3)(Rr[ gY*gXdim + gX+d ], Rg[ gY*gXdim + gX+d ], Rb[ gY*gXdim + gX+d ]), color_th), 
+						 isless( (float)gX+d, gXdim) && isless( 0.f, (float)gX+d));
+
+		// Gradient cost
+		float C_grad = select(grad_th, 
+						 grad_cost( (float)gradL[ gY*gXdim + gX ], (float)gradR[ gY*gXdim + gX+d ], grad_th),
+						 isless( (float)gX+d, gXdim) && isless( 0.f, (float)gX+d));
+
+		// Cost Eq. (5) Hosni et. al. PAMI 2011. 
+		out[ (d-d_min)*gXdim*gYdim + gY*gXdim + gX ] = ( 1 - alpha )*C_color + alpha*C_grad;
+	} 
+}

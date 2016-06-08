@@ -45,7 +45,7 @@ CostVolume::CostVolume (clutils::CLEnv &_env, clutils::CLEnvInfo<1> _info):
 							queue (env.getQueue (info.ctxIdx, info.qIdx[0])), 
 							cost_calc(env.getProgram (info.pgIdx), "compute_cost"), 
 							waitList_cost_calc (1), 
-							color_th( 0.f ), grad_th( 0.f), alpha( .5f ), d_levels( 20 )
+							color_th( 0.f ), grad_th( 0.f), alpha( .5f ), d_min( 5 ), d_max( 30 )
 {
 }
 
@@ -94,6 +94,10 @@ cl::Memory& CostVolume::get (CostVolume::Memory mem)
              return dRGBufferIn;
 		case CostVolume::Memory::D_IN_RB:
              return dRBBufferIn;
+		case CostVolume::Memory::D_IN_LGRAD:
+			return dLGRADBufferIn;
+		case CostVolume::Memory::D_IN_RGRAD:
+			return dRGRADBufferIn;
         case CostVolume::Memory::D_OUT:
              return dBufferOut;
    }
@@ -167,11 +171,12 @@ void* CostVolume::read ( CostVolume::Memory mem, bool block,
  *  \param[in] _d_levels disparity levels 
  *  \param[in] _staging flag to indicate whether or not to instantiate the staging buffers.
  */
-void CostVolume::init(int _width, int _height, int _d_levels, Staging _staging)
+void CostVolume::init(int _width, int _height, int _d_min, int _d_max, int _cth, int _gth, double _alpha, Staging _staging)
 {
-	width = _width; height = _height; d_levels = _d_levels;
+	width = _width; height = _height; d_min = _d_min; d_max = _d_max; color_th = _cth, grad_th = _gth;
+	alpha = _alpha;
 	bufferSize = width * height * sizeof (cl_float);
-	outBufferSize = d_levels * width * height * sizeof(cl_float);
+	outBufferSize = (d_max-d_min+1) * width * height * sizeof(cl_float);
 	staging = _staging;
 
     try
@@ -260,10 +265,10 @@ void CostVolume::init(int _width, int _height, int _d_levels, Staging _staging)
 
         case Staging::O:
             if (hBufferOut () == nullptr)
-                hBufferOut = cl::Buffer (context, CL_MEM_ALLOC_HOST_PTR, bufferSize);
+                hBufferOut = cl::Buffer (context, CL_MEM_ALLOC_HOST_PTR, outBufferSize);
 
              hPtrOut = (cl_float *) queue.enqueueMapBuffer (
-					         hBufferOut, CL_FALSE, CL_MAP_READ, 0, bufferSize);
+					         hBufferOut, CL_FALSE, CL_MAP_READ, 0, outBufferSize);
              queue.enqueueUnmapMemObject (hBufferOut, hPtrOut);
              queue.finish ();
 
@@ -304,12 +309,13 @@ void CostVolume::init(int _width, int _height, int _d_levels, Staging _staging)
 	cost_calc.setArg( 4, dRGBufferIn );
 	cost_calc.setArg( 5, dRBBufferIn );
 	cost_calc.setArg( 6, dLGRADBufferIn);
-	cost_calc.setArg( 7, dRGBufferIn);
+	cost_calc.setArg( 7, dRGRADBufferIn);
 	cost_calc.setArg( 8, dBufferOut );
-	cost_calc.setArg( 9, (int)d_levels);
-	cost_calc.setArg( 10, (float)color_th);
-	cost_calc.setArg( 11, (float)grad_th);
-	cost_calc.setArg( 12, (float)alpha);
+	cost_calc.setArg( 9, (int)d_min);
+	cost_calc.setArg( 10, (int)d_max);
+	cost_calc.setArg( 11, (float)color_th);
+	cost_calc.setArg( 12, (float)grad_th);
+	cost_calc.setArg( 13, (float)alpha);
 
 	// Set workspaces
     global = cl::NDRange (width, height);

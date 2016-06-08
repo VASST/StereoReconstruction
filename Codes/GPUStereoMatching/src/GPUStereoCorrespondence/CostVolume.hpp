@@ -116,9 +116,9 @@ private:
     cl::Context context;
     cl::CommandQueue queue;
     cl::Kernel cost_calc;
-    cl::NDRange global;
+    cl::NDRange global, local;
     Staging staging;
-    unsigned int width, height, bufferSize, outBufferSize;
+    unsigned int width, height, bufferInSize, bufferOutSize;
     cl::Buffer hLRBufferIn, hLGBufferIn, hLBBufferIn, hRRBufferIn, hRGBufferIn, hRBBufferIn, hLGRADBufferIn, hRGRADBufferIn, hBufferOut;
     cl::Buffer dLRBufferIn, dLGBufferIn, dLBBufferIn, dRRBufferIn, dRGBufferIn, dRBBufferIn, dLGRADBufferIn, dRGRADBufferIn, dBufferOut;
     cl::Event cost_calc_event;

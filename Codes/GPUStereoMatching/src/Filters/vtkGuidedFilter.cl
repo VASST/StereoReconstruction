@@ -1026,12 +1026,26 @@ void sobel(global float *src, global float *dst, int mode)
 /*! \brief Performs color cost computation per work-item
  * \param[in] colorL vector of 3 colors of the left image
  * \param[in] colorR vectgor of 3 colors of the right image
+ * \param[in] MAX_COST cost threshold
+ * \param[in] mode 0-AD(pixel) 1-AD(patch) 2-SSD(patch) 3-ZNCC(patch)
  */
-float color_cost( float3 colorL, float3 colorR, float MAX_COST )
+
+float color_cost( float3 colorL, float3 colorR, float MAX_COST, int mode )
 {
 	// Refer to this article for better color differences https://en.wikipedia.org/wiki/Color_difference
 	// Use Lab color space instread for improved performance. 
-	float cost = dot( fabs(colorL - colorR), (float3)(1))/3.0f; 
+	float cost = 0.f;
+	switch( mode )
+	{
+	case 0:
+		cost = dot( fabs(colorL - colorR), (float3)(1))/3.f; 
+		break;
+	case 1:
+		break; 
+	case 2:
+		break;
+	}
+
 	return select( cost, MAX_COST, isgreater( cost, MAX_COST ) );
 }
 
@@ -1079,7 +1093,7 @@ void compute_cost(global float *Lr, global float *Lg, global float *Lb,
 		// Color cost
 		float C_color = select(color_th, 
 						 color_cost( (float3)(Lr[ gY*gXdim + gX ], Lg[ gY*gXdim + gX ], Lb[ gY*gXdim + gXdim ]), 
-											(float3)(Rr[ gY*gXdim + gX+d ], Rg[ gY*gXdim + gX+d ], Rb[ gY*gXdim + gX+d ]), color_th), 
+											(float3)(Rr[ gY*gXdim + gX+d ], Rg[ gY*gXdim + gX+d ], Rb[ gY*gXdim + gX+d ]), color_th, 0), 
 						 isless( (float)gX+d, gXdim) && isless( 0.f, (float)gX+d));
 
 		// Gradient cost

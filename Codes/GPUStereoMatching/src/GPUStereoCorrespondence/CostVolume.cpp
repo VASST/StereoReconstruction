@@ -313,9 +313,9 @@ void CostVolume::init(int _width, int _height, int _d_min, int _d_max, int _cth,
 	cost_calc.setArg( 8, dBufferOut );
 	cost_calc.setArg( 9, (int)d_min);
 	cost_calc.setArg( 10, (int)d_max);
-	cost_calc.setArg( 11, (float)color_th);
-	cost_calc.setArg( 12, (float)grad_th);
-	cost_calc.setArg( 13, (float)alpha);
+	cost_calc.setArg( 11, static_cast<float>(color_th));
+	cost_calc.setArg( 12, static_cast<float>(grad_th));
+	cost_calc.setArg( 13, static_cast<float>(alpha));
 
 	// Set workspaces
     global = cl::NDRange (width, height);

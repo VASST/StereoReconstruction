@@ -124,8 +124,9 @@ int main(int argc, char* argv)
 
 	// TODO
 
-
+	// Start timing.
 	auto t_start = std::chrono::high_resolution_clock::now();
+
 	// Copy data to device
 	rgb_L.write (cl_algo::GF::SeparateRGB<C1>::Memory::D_IN, (void*)imgL.datastart);
 	rgb_R.write (cl_algo::GF::SeparateRGB<C1>::Memory::D_IN, (void*)imgR.datastart);
@@ -140,16 +141,17 @@ int main(int argc, char* argv)
 	CV.run ();
 
 	// Copy results to host
-    cl_float *left_gradient = (cl_float *) GradF_L.read ();
-	cl_float *right_gradient = (cl_float *) GradF_R.read ();
 	cl_float *cost_out = (cl_float *)CV.read ();
-	//cl_float *debug_out = (cl_float *)rgb_R.read (cl_algo::GF::SeparateRGB<C1>::Memory::H_OUT_B );
 
-	// End time
+	// End time.
 	auto t_end = std::chrono::high_resolution_clock::now();
 	std::cout << "Elapsed time  : "
-              << std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start).count()
-              << " us." << std::endl;
+		<< std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start).count()
+              << " ms." << std::endl;
+		
+	//cl_float *debug_out = (cl_float *)rgb_R.read (cl_algo::GF::SeparateRGB<C1>::Memory::H_OUT_B );
+	cl_float *left_gradient = (cl_float *) GradF_L.read ();
+	cl_float *right_gradient = (cl_float *) GradF_R.read ();
 
 	cv::imshow("Left_Image", imgL);
 	cv::moveWindow("Left_Image", 0, 0);
@@ -160,7 +162,7 @@ int main(int argc, char* argv)
 	cv::imshow("Right_Gradient(x)", cv::Mat(height, width, CV_32FC1, right_gradient));
 	cv::moveWindow("Right_Gradient(x)", 3*width, 0);
 
-	int cost_slice_num = 20;
+	int cost_slice_num = 0;
 	cl_float *cost_slice_mem = new float[ width*height ];
 	memcpy(cost_slice_mem, cost_out + width*height*cost_slice_num, sizeof(cl_float)*width*height); 
 	cv::Mat cost(height, width, CV_32FC1, cost_slice_mem);

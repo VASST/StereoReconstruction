@@ -64,36 +64,20 @@ cl::Memory& CostVolume::get (CostVolume::Memory mem)
 {
    switch (mem)
    {
-		case CostVolume::Memory::H_IN_LR:
-             return hLRBufferIn;
-		case CostVolume::Memory::H_IN_LG:
-             return hLGBufferIn;
-		case CostVolume::Memory::H_IN_LB:
-             return hLBBufferIn;
-		case CostVolume::Memory::H_IN_RR:
-             return hRRBufferIn;
-		case CostVolume::Memory::H_IN_RG:
-             return hRGBufferIn;
-		case CostVolume::Memory::H_IN_RB:
-             return hRBBufferIn;
+		case CostVolume::Memory::H_IN_L:
+             return hLBufferIn;
+		case CostVolume::Memory::H_IN_R:
+             return hRBufferIn;
 		case CostVolume::Memory::H_IN_LGRAD:
 			return hLGRADBufferIn;
 		case CostVolume::Memory::H_IN_RGRAD:
 			return hRGRADBufferIn;
         case CostVolume::Memory::H_OUT:
              return hBufferOut;
-        case CostVolume::Memory::D_IN_LR:
-             return dLRBufferIn;
-		case CostVolume::Memory::D_IN_LG:
-             return dLGBufferIn;
-		case CostVolume::Memory::D_IN_LB:
-             return dLBBufferIn;
-		case CostVolume::Memory::D_IN_RR:
-             return dRRBufferIn;
-		case CostVolume::Memory::D_IN_RG:
-             return dRGBufferIn;
-		case CostVolume::Memory::D_IN_RB:
-             return dRBBufferIn;
+        case CostVolume::Memory::D_IN_L:
+             return dLBufferIn;
+		case CostVolume::Memory::D_IN_R:
+             return dRBufferIn;
 		case CostVolume::Memory::D_IN_LGRAD:
 			return dLGRADBufferIn;
 		case CostVolume::Memory::D_IN_RGRAD:
@@ -124,10 +108,10 @@ void CostVolume::write( CostVolume::Memory mem,
     {
          switch (mem)
          {
-			case CostVolume::Memory::D_IN_LR:
+			case CostVolume::Memory::D_IN_L:
                  if (ptr != nullptr)
-                    std::copy ((cl_float *) ptr, (cl_float *) ptr + width * height, hLRPtrIn);
-                 queue.enqueueWriteBuffer (dLRBufferIn, block, 0, bufferInSize, hLRPtrIn, events, event);
+                    std::copy ((cl_float *) ptr, (cl_float *) ptr + width * height, hLPtrIn);
+                 queue.enqueueWriteBuffer (dLBufferIn, block, 0, bufferInSize, hLPtrIn, events, event);
                  break;
     
 			 default:
@@ -198,12 +182,8 @@ void CostVolume::init(int _width, int _height, int _d_min, int _d_max, int _cth,
     switch (staging)
     {
         case Staging::NONE:
-             hLRPtrIn = nullptr;
-			 hLGPtrIn = nullptr;
-			 hLBPtrIn = nullptr;
-			 hRRPtrIn = nullptr;
-			 hRGPtrIn = nullptr;
-			 hRBPtrIn = nullptr;
+             hLPtrIn = nullptr;
+			 hRPtrIn = nullptr;
 			 hLGRADPtrIn = nullptr;
 			 hRGRADPtrIn = nullptr;
              hPtrOut = nullptr;
@@ -213,46 +193,26 @@ void CostVolume::init(int _width, int _height, int _d_min, int _d_max, int _cth,
              io = true;
 
         case Staging::I:
-             if (hLRBufferIn () == nullptr)
-                 hLRBufferIn = cl::Buffer (context, CL_MEM_ALLOC_HOST_PTR, bufferInSize);
-			 if (hLGBufferIn () == nullptr)
-                 hLGBufferIn = cl::Buffer (context, CL_MEM_ALLOC_HOST_PTR, bufferInSize);
-			 if (hLBBufferIn () == nullptr)
-                 hLBBufferIn = cl::Buffer (context, CL_MEM_ALLOC_HOST_PTR, bufferInSize);
-			 if (hRRBufferIn () == nullptr)
-                 hRRBufferIn = cl::Buffer (context, CL_MEM_ALLOC_HOST_PTR, bufferInSize);
-			 if (hRGBufferIn () == nullptr)
-                 hRGBufferIn = cl::Buffer (context, CL_MEM_ALLOC_HOST_PTR, bufferInSize);
-			 if (hRBBufferIn () == nullptr)
-                 hRBBufferIn = cl::Buffer (context, CL_MEM_ALLOC_HOST_PTR, bufferInSize);
+             if (hLBufferIn () == nullptr)
+                 hLBufferIn = cl::Buffer (context, CL_MEM_ALLOC_HOST_PTR, bufferInSize);
+			 if (hRBufferIn () == nullptr)
+                 hRBufferIn = cl::Buffer (context, CL_MEM_ALLOC_HOST_PTR, bufferInSize);
 			 if (hLGRADBufferIn () == nullptr )
                  hLGRADBufferIn = cl::Buffer (context, CL_MEM_ALLOC_HOST_PTR, bufferInSize);
 			 if (hRGRADBufferIn () == nullptr )
                  hRGRADBufferIn = cl::Buffer (context, CL_MEM_ALLOC_HOST_PTR, bufferInSize);
 
-             hLRPtrIn = (cl_float *) queue.enqueueMapBuffer (
-				         hLRBufferIn, CL_FALSE, CL_MAP_WRITE, 0, bufferInSize);
-			 hLGPtrIn = (cl_float *) queue.enqueueMapBuffer (
-				         hLGBufferIn, CL_FALSE, CL_MAP_WRITE, 0, bufferInSize);
-			 hLBPtrIn = (cl_float *) queue.enqueueMapBuffer (
-				         hLBBufferIn, CL_FALSE, CL_MAP_WRITE, 0, bufferInSize);
-			 hRRPtrIn = (cl_float *) queue.enqueueMapBuffer (
-				         hRRBufferIn, CL_FALSE, CL_MAP_WRITE, 0, bufferInSize);
-			 hRGPtrIn = (cl_float *) queue.enqueueMapBuffer (
-				         hRGBufferIn, CL_FALSE, CL_MAP_WRITE, 0, bufferInSize);
-			 hRBPtrIn = (cl_float *) queue.enqueueMapBuffer (
-				         hRBBufferIn, CL_FALSE, CL_MAP_WRITE, 0, bufferInSize);
+             hLPtrIn = (cl_float *) queue.enqueueMapBuffer (
+				         hLBufferIn, CL_FALSE, CL_MAP_WRITE, 0, bufferInSize);
+			 hRPtrIn = (cl_float *) queue.enqueueMapBuffer (
+				         hRBufferIn, CL_FALSE, CL_MAP_WRITE, 0, bufferInSize);
 			 hLGRADPtrIn = (cl_float *) queue.enqueueMapBuffer (
 						 hLGRADBufferIn, CL_FALSE, CL_MAP_WRITE, 0, bufferInSize);
 			 hRGRADPtrIn = (cl_float *) queue.enqueueMapBuffer (
 						 hRGRADBufferIn, CL_FALSE, CL_MAP_WRITE, 0, bufferInSize);
 
-             queue.enqueueUnmapMemObject (hLRBufferIn, hLRPtrIn);
-			 queue.enqueueUnmapMemObject (hLGBufferIn, hLGPtrIn);
-			 queue.enqueueUnmapMemObject (hLBBufferIn, hLBPtrIn);
-			 queue.enqueueUnmapMemObject (hRRBufferIn, hRRPtrIn);
-			 queue.enqueueUnmapMemObject (hRGBufferIn, hRGPtrIn);
-			 queue.enqueueUnmapMemObject (hRBBufferIn, hRBPtrIn);
+             queue.enqueueUnmapMemObject (hLBufferIn, hLPtrIn);
+			 queue.enqueueUnmapMemObject (hRBufferIn, hRPtrIn);
 			 queue.enqueueUnmapMemObject( hLGRADBufferIn, hLGRADPtrIn );
 			 queue.enqueueUnmapMemObject( hRGRADBufferIn, hRGRADPtrIn );
 
@@ -274,26 +234,17 @@ void CostVolume::init(int _width, int _height, int _d_min, int _d_max, int _cth,
 
              if (!io)
 			 { 
-				 hLRPtrIn = nullptr; hLGPtrIn = nullptr; hLBPtrIn = nullptr;
-				 hRRPtrIn = nullptr; hRGPtrIn = nullptr; hRBPtrIn = nullptr;
+				 hLPtrIn = nullptr; hRPtrIn = nullptr;
 				 hLGRADPtrIn = nullptr; hRGRADPtrIn = nullptr;
 			 }
              break;
 	}
 
 	// Create device buffers
-    if (dLRBufferIn () == nullptr)
-        dLRBufferIn = cl::Buffer (context, CL_MEM_READ_ONLY, bufferInSize);
-	if (dLGBufferIn () == nullptr)
-        dLGBufferIn = cl::Buffer (context, CL_MEM_READ_ONLY, bufferInSize);
-	if (dLBBufferIn () == nullptr)
-        dLBBufferIn = cl::Buffer (context, CL_MEM_READ_ONLY, bufferInSize);
-	if (dRRBufferIn () == nullptr)
-        dRRBufferIn = cl::Buffer (context, CL_MEM_READ_ONLY, bufferInSize);
-	if (dRGBufferIn () == nullptr)
-        dRGBufferIn = cl::Buffer (context, CL_MEM_READ_ONLY, bufferInSize);
-	if (dRBBufferIn () == nullptr)
-        dRBBufferIn = cl::Buffer (context, CL_MEM_READ_ONLY, bufferInSize);
+    if (dLBufferIn () == nullptr)
+        dLBufferIn = cl::Buffer (context, CL_MEM_READ_ONLY, bufferInSize);
+	if (dRBufferIn () == nullptr)
+        dRBufferIn = cl::Buffer (context, CL_MEM_READ_ONLY, bufferInSize);
 	if( dLGRADBufferIn() == nullptr)
 		dLGRADBufferIn = cl::Buffer( context, CL_MEM_READ_ONLY, bufferInSize);
 	if( dRGRADBufferIn() == nullptr)
@@ -302,25 +253,21 @@ void CostVolume::init(int _width, int _height, int _d_min, int _d_max, int _cth,
     if (dBufferOut () == nullptr)
         dBufferOut = cl::Buffer (context, CL_MEM_WRITE_ONLY, bufferOutSize);
 
-	cost_calc.setArg( 0, dLRBufferIn );
-	cost_calc.setArg( 1, dLGBufferIn );
-	cost_calc.setArg( 2, dLBBufferIn );
-	cost_calc.setArg( 3, dRRBufferIn );
-	cost_calc.setArg( 4, dRGBufferIn );
-	cost_calc.setArg( 5, dRBBufferIn );
-	cost_calc.setArg( 6, dLGRADBufferIn);
-	cost_calc.setArg( 7, dRGRADBufferIn);
-	cost_calc.setArg( 8, dBufferOut );
+	cost_calc.setArg( 0, dLBufferIn );
+	cost_calc.setArg( 1, dRBufferIn );
+	cost_calc.setArg( 2, dLGRADBufferIn);
+	cost_calc.setArg( 3, dRGRADBufferIn);
+	cost_calc.setArg( 4, dBufferOut );
 	int patch_r = 3;
 	int vx = 2*(patch_r-1)+1;
-	cost_calc.setArg( 9, static_cast<int>(patch_r));
-	cost_calc.setArg( 10, (int)d_min);
-	cost_calc.setArg( 11, (int)d_max);
-	cost_calc.setArg( 12, static_cast<float>(color_th));
-	cost_calc.setArg( 13, static_cast<float>(grad_th));
-	cost_calc.setArg( 14, static_cast<float>(alpha));
-	cost_calc.setArg( 15, 0);
-	cost_calc.setArg( 16, static_cast<float>(1e10));
+	cost_calc.setArg( 5, static_cast<int>(patch_r));
+	cost_calc.setArg( 6, (int)d_min);
+	cost_calc.setArg( 7, (int)d_max);
+	cost_calc.setArg( 8, static_cast<float>(color_th));
+	cost_calc.setArg( 9, static_cast<float>(grad_th));
+	cost_calc.setArg( 10, static_cast<float>(alpha));
+	cost_calc.setArg( 11, 2);
+	cost_calc.setArg( 12, static_cast<float>(1e10));
 
 	// Set workspaces to three dimensions, d being the third dimension
     global = cl::NDRange (width, height, (d_max-d_min+1));

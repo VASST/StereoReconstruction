@@ -2,6 +2,7 @@ project( GPUStereoCorrespondence  )
 
 add_library ( ${PROJECT_NAME} 
 			   GradientFilter.cpp GradientFilter.hpp
+			   GrayscaleFilter.hpp GrayscaleFilter.cpp
 			   CostVolume.hpp CostVolume.cpp)
 
 target_link_libraries ( 

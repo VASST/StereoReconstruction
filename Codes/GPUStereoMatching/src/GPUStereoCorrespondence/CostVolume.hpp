@@ -44,21 +44,13 @@ public:
      */
      enum class Memory : uint8_t
     {
-          H_IN_LR,   /*!< Input staging buffer for left image channel R. */
-		  H_IN_LG,   /*!< Input staging buffer for left image channel G. */
-		  H_IN_LB,   /*!< Input staging buffer for left image channel B. */
-		  H_IN_RR,   /*!< Input staging buffer for right image channel R. */
-		  H_IN_RG,   /*!< Input staging buffer for right image channel G. */
-		  H_IN_RB,   /*!< Input staging buffer for right channel B. */
+          H_IN_L,   /*!< Input staging buffer for left grayscale image. */
+		  H_IN_R,   /*!< Input staging buffer for right grayscale image. */
 		  H_IN_LGRAD, /*!< Input staging buffer for left image gradient. */
 		  H_IN_RGRAD, /*!< Input staging buffer for right image gradient. */
           H_OUT,  /*!< Output staging buffer. */
-          D_IN_LR,   /*!< Input buffer for left image channel R. */
-		  D_IN_LG,   /*!< Input buffer for left image channel G. */
-		  D_IN_LB,   /*!< Input buffer for left image channel B. */
-		  D_IN_RR,   /*!< Input buffer for right image channel R. */
-		  D_IN_RG,   /*!< Input buffer for right image channel G. */
-		  D_IN_RB,   /*!< Input buffer for right image channel B. */
+          D_IN_L,   /*!< Input buffer for left grayscale image. */
+		  D_IN_R,   /*!< Input buffer for right grayscale */
 		  D_IN_LGRAD, /*!< Input buffer for left image gradient. */
 		  D_IN_RGRAD, /*!< Input buffer for right image gradient. */
           D_OUT,  /*!< Output buffer. */
@@ -90,7 +82,7 @@ public:
     void init (int _width, int _height, int _d_min, int _d_max, int _cth, int _gth, double _alpha, Staging _staging = Staging::IO);
 
     /*! \brief Performs a data transfer to a device buffer. */
-    void write (CostVolume::Memory mem = CostVolume::Memory::D_IN_LR, void *ptr = nullptr, bool block = CL_FALSE, 
+    void write (CostVolume::Memory mem = CostVolume::Memory::D_IN_L, void *ptr = nullptr, bool block = CL_FALSE, 
                     const std::vector<cl::Event> *events = nullptr, cl::Event *event = nullptr);
         
 	/*! \brief Performs a data transfer to a staging buffer. */
@@ -100,12 +92,8 @@ public:
 	/*! \brief Executes the necessary kernels. */
     void run (const std::vector<cl::Event> *events = nullptr, cl::Event *event = nullptr);
 
-	cl_float *hLRPtrIn;  /*!< Mapping of the input staging buffer for left image R channel. */
-	cl_float *hLGPtrIn;  /*!< Mapping of the input staging buffer for left image G channel. */
-	cl_float *hLBPtrIn;  /*!< Mapping of the input staging buffer for left image B channel. */
-	cl_float *hRRPtrIn;  /*!< Mapping of the input staging buffer for right image R channel. */
-	cl_float *hRGPtrIn;  /*!< Mapping of the input staging buffer for right image G channel. */
-	cl_float *hRBPtrIn;  /*!< Mapping of the input staging buffer for right image B channel. */
+	cl_float *hLPtrIn;  /*!< Mapping of the input staging buffer for left grayscale image */
+	cl_float *hRPtrIn;  /*!< Mapping of the input staging buffer for right grayscale image. */
 	cl_float *hLGRADPtrIn;  /*!< Mapping of the input staging buffer for left image gradient. */
 	cl_float *hRGRADPtrIn;  /*!< Mapping of the input staging buffer for left image gradient. */
     cl_float *hPtrOut;  /*!< Mapping of the output staging buffer. */
@@ -119,8 +107,8 @@ private:
     cl::NDRange global, local;
     Staging staging;
     unsigned int width, height, bufferInSize, bufferOutSize;
-    cl::Buffer hLRBufferIn, hLGBufferIn, hLBBufferIn, hRRBufferIn, hRGBufferIn, hRBBufferIn, hLGRADBufferIn, hRGRADBufferIn, hBufferOut;
-    cl::Buffer dLRBufferIn, dLGBufferIn, dLBBufferIn, dRRBufferIn, dRGBufferIn, dRBBufferIn, dLGRADBufferIn, dRGRADBufferIn, dBufferOut;
+    cl::Buffer hLBufferIn, hRBufferIn, hLGRADBufferIn, hRGRADBufferIn, hBufferOut;
+    cl::Buffer dLBufferIn, dRBufferIn, dLGRADBufferIn, dRGRADBufferIn, dBufferOut;
     cl::Event cost_calc_event;
     std::vector<cl::Event> waitList_cost_calc;
 

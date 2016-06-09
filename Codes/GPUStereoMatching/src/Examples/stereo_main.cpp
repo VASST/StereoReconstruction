@@ -46,11 +46,14 @@
 
 int main(int argc, char* argv)
 {
-	cv::Mat imgL = cv::imread("../Data/000100LD4.png");
-	cv::Mat imgR = cv::imread("../Data/000100RD4.png");
+	cv::Mat imgL = cv::imread("../Data/demoL.jpg");
+	cv::Mat imgR = cv::imread("../Data/demoR.jpg");
+	//cv::Mat imgL = cv::imread("../Data/000100LD4.png");
+	//cv::Mat imgR = cv::imread("../Data/000100LD4.png");
 
 	const unsigned int width(imgL.cols), height(imgL.rows);
 	const unsigned int bufferSize = width * height * sizeof (cl_float);
+	const unsigned int channels(imgL.channels());
 
 	/* CPU DX computation */
 	cv::Mat bgr[3];
@@ -167,7 +170,7 @@ int main(int argc, char* argv)
 	cv::moveWindow("Cost", 4*width, 0);
 
 	/* For debugging */
-	/*cl_float *debug_out = (cl_float *) I2.read();
+	/*cl_float *debug_out = (cl_float *) I1.read();
 	
 	cv::Mat temp(height, width, CV_32FC1, debug_out);
 	double min, max;

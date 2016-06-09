@@ -1023,29 +1023,26 @@ void sobel(global float *src, global float *dst, int mode)
 	dst[ gY*gXdim + gX ] = 0.f;
 }
 
+/*! \brief Performs a RGB to gray conversion
+ * \param[in] color float3 vector of color
+ * \return float of gray value
+ */
+float convert_to_gray(float3 color)
+{
+	return (0.2989*color.x + 0.5870*color.y + 0.1140*color.z);
+}
+
 /*! \brief Performs color cost computation per work-item
  * \param[in] colorL vector of 3 colors of the left image
  * \param[in] colorR vectgor of 3 colors of the right image
  * \param[in] MAX_COST cost threshold
- * \param[in] mode 0-AD(pixel) 1-AD(patch) 2-SSD(patch) 3-ZNCC(patch)
  */
 
-float color_cost( float3 colorL, float3 colorR, float MAX_COST, int mode )
+float brightness_cost( float I_L, float I_R, float MAX_COST)
 {
 	// Refer to this article for better color differences https://en.wikipedia.org/wiki/Color_difference
 	// Use Lab color space instread for improved performance. 
-	float cost = 0.f;
-	switch( mode )
-	{
-	case 0:
-		cost = dot( fabs(colorL - colorR), (float3)(1))/3.f; 
-		break;
-	case 1:
-		break; 
-	case 2:
-		break;
-	}
-
+	float cost = fabs(I_L - I_R); 
 	return select( cost, MAX_COST, isgreater( cost, MAX_COST ) );
 }
 
@@ -1059,6 +1056,7 @@ float grad_cost( float gradL, float gradR, float MAX_COST )
 	return select( cost, MAX_COST, isgreater( cost, MAX_COST ) );
 }
 
+
 /*! \brief Performs computation of cost volume . 
  * \param[in] Lr input array of r channel of the left image
  * \param[in] Lg input array of g channel of the left image
@@ -1069,6 +1067,7 @@ float grad_cost( float gradL, float gradR, float MAX_COST )
  * \param[in] gradL input array of the gradient of the left image
  * \param[in] gradR input array of the gradient of the right image
  * \param[out] out output array of the computed costs at different disparities. Is of size width*height*d
+ * \param[in] patch_r radius of an image patch
  * \param[in] in d input levels of disparities
  * \param[in] color_th input color threshold
  * \param[in] grad_th input gradient threshold
@@ -1077,31 +1076,93 @@ kernel
 void compute_cost(global float *Lr, global float *Lg, global float *Lb, 
 					global float *Rr, global float *Rg, global float *Rb, 
 					 global float *gradL, global float *gradR, global float *out, 
-					 int d_min, int d_max, float color_th, float grad_th, float alpha)
+					 int patch_r, 
+					 int d_min, int d_max, float color_th, float grad_th, float alpha, int similarity, float inf)
 {
     // Workspace dimensions
     const int gXdim = get_global_size (0);
 	const int gYdim = get_global_size (1);
+	const int gZdim = get_global_size (2); // disparity direction
+	const int lXdim = get_local_size (0);
 
     // Workspace indices
     const int gX = get_global_id (0);
     const int gY = get_global_id (1);
+	const int d = get_global_id (2);
 
-	// Loop for all disparity levels d
-	for( int d = d_min; d<=d_max; d++ )
+	// Work-item indices
+	const int lX = get_local_id (0);
+
+	// volume id
+	int vid = d*gXdim*gYdim + gY*gXdim + gX; 
+	
+	// work-group ids
+	int wid = gY*gXdim + gX; 
+	int wid_d = gY*gXdim + gX + d; 
+
+	int vx = 2*(patch_r-1)+1;
+
+	// Set output to INF
+	out[ vid ] = inf;
+	float data_term = 0.f; 
+
+	if( patch_r <=gX && gX<=gXdim-patch_r && patch_r <gY && gY<=gYdim-patch_r) // check bounds
 	{
-		// Color cost
-		float C_color = select(color_th, 
-						 color_cost( (float3)(Lr[ gY*gXdim + gX ], Lg[ gY*gXdim + gX ], Lb[ gY*gXdim + gXdim ]), 
-											(float3)(Rr[ gY*gXdim + gX+d ], Rg[ gY*gXdim + gX+d ], Rb[ gY*gXdim + gX+d ]), color_th, 0), 
-						 isless( (float)gX+d, gXdim) && isless( 0.f, (float)gX+d));
 
-		// Gradient cost
-		float C_grad = select(grad_th, 
-						 grad_cost( (float)gradL[ gY*gXdim + gX ], (float)gradR[ gY*gXdim + gX+d ], grad_th),
-						 isless( (float)gX+d, gXdim) && isless( 0.f, (float)gX+d));
+		// Compute ZNCC
+		int j, k, l, img_idx;
+		float I_L0 = 0.f;
+		float I_R0 = 0.f;
+		float sumL = 0.f;
+		float sumR = 0.f;
+		float prod_sum = 0.f;
+		float square_sum_L = 0.f;
+		float square_sum_R = 0.f;
 
-		// Cost Eq. (5) Hosni et. al. PAMI 2011. 
-		out[ (d-d_min)*gXdim*gYdim + gY*gXdim + gX ] = ( 1 - alpha )*C_color + alpha*C_grad;
+		int N = vx*vx;
+		for( int i=0; i< N; i++)
+		{
+			j = i%vx - patch_r +1;
+			k = i/vx - patch_r +1;
+			img_idx = wid + k*gXdim + j;
+
+			float _I_L = Lr[img_idx];
+			float _I_R = Rr[img_idx + d];
+
+			sumL += _I_L;
+			sumR += _I_R;
+
+			prod_sum += _I_L * _I_R; // v0*vn
+			square_sum_L += _I_L * _I_L; // v0*v0
+			square_sum_R += _I_R * _I_R; // vn*vn
+		}
+		I_L0 = sumL/N;   I_R0 = sumR/N;
+		
+		float num = (prod_sum - N * I_L0 * I_R0);
+		float den = (square_sum_L - sumL*sumL/N)*(square_sum_R - sumR*sumR/N);
+
+		float zncc = num/sqrt(den);	
+		float absolute_diff   = brightness_cost( (float)Lr[ wid ], (float)Rr[ wid + d], color_th );
+		float gradient_cost = grad_cost( (float)gradL[ wid], (float)gradR[ wid_d ], grad_th);
+
+		switch( similarity )
+		{
+			case 0:
+				// Zero-mean Normalized Cross Correlation
+				data_term = zncc; 
+				break;
+
+			case 1:
+				// AD
+				data_term = absolute_diff; 
+				break;
+
+			case 2:
+				// Cost Eq. (5) Hosni et. al. PAMI 2011.
+				data_term = ( 1 - alpha )*absolute_diff + alpha*gradient_cost;
+				break;
+		}
+
+		out[ vid ] = data_term;
 	} 
 }

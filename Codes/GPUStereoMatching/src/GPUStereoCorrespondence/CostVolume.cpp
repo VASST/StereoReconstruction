@@ -314,16 +314,16 @@ void CostVolume::init(int _width, int _height, int _d_min, int _d_max, int _cth,
 	int patch_r = 3;
 	int vx = 2*(patch_r-1)+1;
 	cost_calc.setArg( 9, static_cast<int>(patch_r));
-	cost_calc.setArg( 10, vx*vx*sizeof(float), NULL);
-	cost_calc.setArg( 11, (int)d_min);
-	cost_calc.setArg( 12, (int)d_max);
-	cost_calc.setArg( 13, static_cast<float>(color_th));
-	cost_calc.setArg( 14, static_cast<float>(grad_th));
-	cost_calc.setArg( 15, static_cast<float>(alpha));
+	cost_calc.setArg( 10, (int)d_min);
+	cost_calc.setArg( 11, (int)d_max);
+	cost_calc.setArg( 12, static_cast<float>(color_th));
+	cost_calc.setArg( 13, static_cast<float>(grad_th));
+	cost_calc.setArg( 14, static_cast<float>(alpha));
+	cost_calc.setArg( 15, 0);
+	cost_calc.setArg( 16, static_cast<float>(1e10));
 
-	// Set workspaces
+	// Set workspaces to three dimensions, d being the third dimension
     global = cl::NDRange (width, height, (d_max-d_min+1));
-	local = cl::NDRange (vx, vx);
 }
 
 //-------------------------------------------------------------------------------------------------------

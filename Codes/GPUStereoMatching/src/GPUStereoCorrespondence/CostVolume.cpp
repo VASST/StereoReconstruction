@@ -258,7 +258,7 @@ void CostVolume::init(int _width, int _height, int _d_min, int _d_max, int _cth,
 	cost_calc.setArg( 2, dLGRADBufferIn);
 	cost_calc.setArg( 3, dRGRADBufferIn);
 	cost_calc.setArg( 4, dBufferOut );
-	int patch_r = 3;
+	int patch_r = 1;
 	int vx = 2*(patch_r-1)+1;
 	cost_calc.setArg( 5, static_cast<int>(patch_r));
 	cost_calc.setArg( 6, (int)d_min);

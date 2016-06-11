@@ -56,8 +56,14 @@ int main(int argc, char* argv)
 {
 	//cv::Mat imgL = cv::imread("../Data/demoL.jpg");
 	//cv::Mat imgR = cv::imread("../Data/demoR.jpg");
-	cv::Mat imgL = cv::imread("../Data/000100LD4.png");
-	cv::Mat imgR = cv::imread("../Data/000100LD4.png");
+	cv::Mat imgL = cv::imread("../Data/000001-hL.png");
+	cv::Mat imgR = cv::imread("../Data/000001-hR.png");
+
+	/*cv::Mat temp(480/2, 640/2, imgL.type());
+	cv::resize(imgL, temp, cv::Size(320, 240),CV_INTER_LINEAR);
+	cv::imwrite("000001-hL.png", temp);
+	cv::resize(imgR, temp, cv::Size(320, 240),CV_INTER_LINEAR);
+	cv::imwrite("000001-hR.png", temp); */
 
 	width = imgL.cols;  height = imgL.rows;
 	const unsigned int bufferSize = width * height * sizeof (cl_float);
@@ -127,10 +133,10 @@ int main(int argc, char* argv)
 	CV.get ( CostVolume::Memory::D_IN_LGRAD ) = GradF_L.get( GradientFilter::Memory::D_OUT);
 	CV.get ( CostVolume::Memory::D_IN_R ) = I2.get(GrayscaleFilter::Memory::D_OUT);
 	CV.get ( CostVolume::Memory::D_IN_RGRAD ) = GradF_R.get( GradientFilter::Memory::D_OUT);
-	CV.init( width, height, 3, 30, 7, 2, 0.5, CostVolume::Staging::IO);
+	CV.init( width, height, 5, 30, 7, 2, 0.5, CostVolume::Staging::IO);
 
 	// Configure guided filter (GF)
-	/*std::vector<unsigned int> v6;
+	std::vector<unsigned int> v6;
 	v6.push_back( 0 );
 	v6.push_back( 1 );
     clutils::CLEnvInfo<2> infoGF (0, 0, 0, v6, 0);
@@ -139,7 +145,7 @@ int main(int argc, char* argv)
     GF.get (cl_algo::GF::GuidedFilter<Ip>::Memory::D_IN_I) = I1.get (GrayscaleFilter::Memory::D_OUT);
 	GF.get (cl_algo::GF::GuidedFilter<Ip>::Memory::D_IN_P) = CV.get (CostVolume::Memory::D_OUT);
     GF.get (cl_algo::GF::GuidedFilter<Ip>::Memory::D_OUT) = cl::Buffer (context, CL_MEM_READ_WRITE, bufferSize);
-    GF.init (width, height, gfRadius, gfEps, 0, 1.f, cl_algo::GF::Staging::O); */
+    GF.init (width, height, gfRadius, gfEps, 0, 0.01f, cl_algo::GF::Staging::O); 
 
 	// Start timing.
 	auto t_start = std::chrono::high_resolution_clock::now();
@@ -156,7 +162,8 @@ int main(int argc, char* argv)
 	GradF_L.run( &waitListL );
 	GradF_R.run( &waitListR );
 	CV.run ();
-	//GF.run ();
+	for(int i=0; i<30; i++)
+		GF.run ();
 
 	// Copy results to host
 	cost_out = (cl_float *)CV.read ();
@@ -183,11 +190,16 @@ int main(int argc, char* argv)
 	cost.convertTo( adj, CV_8UC1, 255/max);*/
 	cv::namedWindow("Cost");
 	cv::createTrackbar("Slice_No", "Cost", &cost_slice_num, 25, on_trackbar, (void*)cost_out );
-	on_trackbar(20, (void*)cost_out);
+	on_trackbar(0, (void*)cost_out);
 
-	/*cl_float *filtered_cost = (cl_float*)GF.read();
-	cv::imshow("Filtered_Cost", cv::Mat(height, width, CV_32FC1, filtered_cost));
-	cv::moveWindow("Filtered_Cost", 3*width, 0); */
+	cl_float *filtered_cost = (cl_float*)GF.read();
+	cv::Mat filtered(height, width, CV_32FC1, filtered_cost);
+	double min, max;
+	cv::minMaxIdx( filtered, &min, &max);
+	cv::Mat temp(height, width, CV_8UC1);
+	filtered.convertTo( temp, CV_8UC1, 255/(max-min)); 
+	cv::imshow("Filtered_Cost", temp);
+	cv::moveWindow("Filtered_Cost", 3*width, 0); 
 
 	/* For debugging */
 	/*cl_float *debug_out = (cl_float *) I1.read();

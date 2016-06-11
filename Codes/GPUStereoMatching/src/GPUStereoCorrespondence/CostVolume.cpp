@@ -267,7 +267,7 @@ void CostVolume::init(int _width, int _height, int _d_min, int _d_max, int _cth,
 	cost_calc.setArg( 9, static_cast<float>(grad_th));
 	cost_calc.setArg( 10, static_cast<float>(alpha));
 	cost_calc.setArg( 11, 2);
-	cost_calc.setArg( 12, static_cast<float>(1e10));
+	cost_calc.setArg( 12, static_cast<float>(1000));
 
 	// Set workspaces to three dimensions, d being the third dimension
     global = cl::NDRange (width, height, (d_max-d_min+1));

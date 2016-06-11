@@ -44,16 +44,27 @@
 #include <cv.hpp>
 #include <highgui.h>
 
+// Slider call-back
+void on_trackbar(int, void*);
+unsigned int width, height;
+
+cl_float *cost_slice_mem, *cost_out;
+cv::Mat cost;
+
+
 int main(int argc, char* argv)
 {
-	cv::Mat imgL = cv::imread("../Data/demoL.jpg");
-	cv::Mat imgR = cv::imread("../Data/demoR.jpg");
-	//cv::Mat imgL = cv::imread("../Data/000100LD4.png");
-	//cv::Mat imgR = cv::imread("../Data/000100LD4.png");
+	//cv::Mat imgL = cv::imread("../Data/demoL.jpg");
+	//cv::Mat imgR = cv::imread("../Data/demoR.jpg");
+	cv::Mat imgL = cv::imread("../Data/000100LD4.png");
+	cv::Mat imgR = cv::imread("../Data/000100LD4.png");
 
-	const unsigned int width(imgL.cols), height(imgL.rows);
+	width = imgL.cols;  height = imgL.rows;
 	const unsigned int bufferSize = width * height * sizeof (cl_float);
 	const unsigned int channels(imgL.channels());
+
+	const unsigned int gfRadius = 9;
+    const float gfEps = 0.1;
 
 	/* CPU DX computation */
 	cv::Mat bgr[3];
@@ -116,7 +127,19 @@ int main(int argc, char* argv)
 	CV.get ( CostVolume::Memory::D_IN_LGRAD ) = GradF_L.get( GradientFilter::Memory::D_OUT);
 	CV.get ( CostVolume::Memory::D_IN_R ) = I2.get(GrayscaleFilter::Memory::D_OUT);
 	CV.get ( CostVolume::Memory::D_IN_RGRAD ) = GradF_R.get( GradientFilter::Memory::D_OUT);
-	CV.init( width, height, 5, 30, 7, 2, 0.1, CostVolume::Staging::O);
+	CV.init( width, height, 3, 30, 7, 2, 0.1, CostVolume::Staging::IO);
+
+	// Configure guided filter (GF)
+	/*std::vector<unsigned int> v6;
+	v6.push_back( 0 );
+	v6.push_back( 1 );
+    clutils::CLEnvInfo<2> infoGF (0, 0, 0, v6, 0);
+	const cl_algo::GF::GuidedFilterConfig Ip = cl_algo::GF::GuidedFilterConfig::I_NEQ_P;
+    cl_algo::GF::GuidedFilter<Ip> GF (clEnv, infoGF);
+    GF.get (cl_algo::GF::GuidedFilter<Ip>::Memory::D_IN_I) = I1.get (GrayscaleFilter::Memory::D_OUT);
+	GF.get (cl_algo::GF::GuidedFilter<Ip>::Memory::D_IN_P) = CV.get (CostVolume::Memory::D_OUT);
+    GF.get (cl_algo::GF::GuidedFilter<Ip>::Memory::D_OUT) = cl::Buffer (context, CL_MEM_READ_WRITE, bufferSize);
+    GF.init (width, height, gfRadius, gfEps, 0, 1.f, cl_algo::GF::Staging::O); */
 
 	// Start timing.
 	auto t_start = std::chrono::high_resolution_clock::now();
@@ -133,9 +156,10 @@ int main(int argc, char* argv)
 	GradF_L.run( &waitListL );
 	GradF_R.run( &waitListR );
 	CV.run ();
+	//GF.run ();
 
 	// Copy results to host
-	cl_float *cost_out = (cl_float *)CV.read ();
+	cost_out = (cl_float *)CV.read ();
 
 	// End time.
 	auto t_end = std::chrono::high_resolution_clock::now();
@@ -143,31 +167,27 @@ int main(int argc, char* argv)
 		<< std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start).count()
               << " ms." << std::endl;
 		
-	//cl_float *debug_out = (cl_float *)rgb_R.read (cl_algo::GF::SeparateRGB<C1>::Memory::H_OUT_B );
-	cl_float *left_gradient = (cl_float *) GradF_L.read ();
-	cl_float *right_gradient = (cl_float *) GradF_R.read ();
 
 	cv::imshow("Left_Image", imgL);
 	cv::moveWindow("Left_Image", 0, 0);
 	cv::imshow("Right_Image", imgR);
 	cv::moveWindow("Right_Image", width, 0);
-	cv::imshow("Left_Gradient(x)", cv::Mat(height, width, CV_32FC1, left_gradient));
-	cv::moveWindow("Left_Gradient(x)", 2*width, 0);
-	cv::imshow("Right_Gradient(x)", cv::Mat(height, width, CV_32FC1, right_gradient));
-	cv::moveWindow("Right_Gradient(x)", 3*width, 0);
 
-	int cost_slice_num = 10;
-	cl_float *cost_slice_mem = new float[ width*height ];
-	memcpy(cost_slice_mem, cost_out + width*height*cost_slice_num, sizeof(cl_float)*width*height); 
-	cv::Mat cost(height, width, CV_32FC1, cost_slice_mem);
+	int cost_slice_num = 0;
+	cost_slice_mem = new float[ width*height ];
+	
 
 	/*double min, max;
 	cv::minMaxIdx(cost, &min, &max);
 	cv::Mat adj;
 	cost.convertTo( adj, CV_8UC1, 255/max);*/
+	cv::namedWindow("Cost");
+	cv::createTrackbar("Slice_No", "Cost", &cost_slice_num, 25, on_trackbar, (void*)cost_out );
+	on_trackbar(20, (void*)cost_out);
 
-	cv::imshow("Cost", cost );
-	cv::moveWindow("Cost", 4*width, 0);
+	/*cl_float *filtered_cost = (cl_float*)GF.read();
+	cv::imshow("Filtered_Cost", cv::Mat(height, width, CV_32FC1, filtered_cost));
+	cv::moveWindow("Filtered_Cost", 3*width, 0); */
 
 	/* For debugging */
 	/*cl_float *debug_out = (cl_float *) I1.read();
@@ -184,4 +204,12 @@ int main(int argc, char* argv)
 	delete cost_slice_mem;
 
 	return 0;
+}
+
+void on_trackbar(int i , void* data)
+{
+	cost = cv::Mat(height, width, CV_32FC1);
+	memcpy(cost.data, cost_out + width*height*i, sizeof(cl_float)*width*height);
+	cv::imshow("Cost", cost );
+	cv::moveWindow("Cost", 2*width, 0);
 }

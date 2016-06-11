@@ -127,7 +127,7 @@ int main(int argc, char* argv)
 	CV.get ( CostVolume::Memory::D_IN_LGRAD ) = GradF_L.get( GradientFilter::Memory::D_OUT);
 	CV.get ( CostVolume::Memory::D_IN_R ) = I2.get(GrayscaleFilter::Memory::D_OUT);
 	CV.get ( CostVolume::Memory::D_IN_RGRAD ) = GradF_R.get( GradientFilter::Memory::D_OUT);
-	CV.init( width, height, 3, 30, 7, 2, 0.1, CostVolume::Staging::IO);
+	CV.init( width, height, 3, 30, 7, 2, 0.5, CostVolume::Staging::IO);
 
 	// Configure guided filter (GF)
 	/*std::vector<unsigned int> v6;
@@ -210,6 +210,12 @@ void on_trackbar(int i , void* data)
 {
 	cost = cv::Mat(height, width, CV_32FC1);
 	memcpy(cost.data, cost_out + width*height*i, sizeof(cl_float)*width*height);
-	cv::imshow("Cost", cost );
+
+	// output cost needs to be rescaled to 0-255 range.
+	double min, max;
+	cv::minMaxIdx( cost, &min, &max);
+	cv::Mat temp(height, width, CV_8UC1);
+	cost.convertTo( temp, CV_8UC1, 255/(max-min)); 
+	cv::imshow("Cost", temp );
 	cv::moveWindow("Cost", 2*width, 0);
 }

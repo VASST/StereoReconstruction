@@ -263,8 +263,8 @@ void CostVolume::init(int _width, int _height, int _d_min, int _d_max, int _cth,
 	cost_calc.setArg( 5, static_cast<int>(patch_r));
 	cost_calc.setArg( 6, (int)d_min);
 	cost_calc.setArg( 7, (int)d_max);
-	cost_calc.setArg( 8, static_cast<float>(color_th));
-	cost_calc.setArg( 9, static_cast<float>(grad_th));
+	cost_calc.setArg( 8, static_cast<float>(color_th/255));
+	cost_calc.setArg( 9, static_cast<float>(grad_th/255));
 	cost_calc.setArg( 10, static_cast<float>(alpha));
 	cost_calc.setArg( 11, 2);
 	cost_calc.setArg( 12, static_cast<float>(1000));

@@ -39,6 +39,7 @@
 #include <GradientFilter.hpp>
 #include <CostVolume.hpp>
 #include <vtkGuidedFilterAlgo.hpp>
+#include <BFCostAggregator.hpp>
 
 // Opencv includes
 #include <cv.hpp>
@@ -71,6 +72,8 @@ int main(int argc, char* argv)
 
 	const unsigned int gfRadius = 9;
     const float gfEps = 0.1;
+	const int d_max = 30; 
+	const int d_min = 5;
 
 	/* CPU DX computation */
 	cv::Mat bgr[3];
@@ -133,10 +136,10 @@ int main(int argc, char* argv)
 	CV.get ( CostVolume::Memory::D_IN_LGRAD ) = GradF_L.get( GradientFilter::Memory::D_OUT);
 	CV.get ( CostVolume::Memory::D_IN_R ) = I2.get(GrayscaleFilter::Memory::D_OUT);
 	CV.get ( CostVolume::Memory::D_IN_RGRAD ) = GradF_R.get( GradientFilter::Memory::D_OUT);
-	CV.init( width, height, 5, 30, 7, 2, 0.5, CostVolume::Staging::IO);
+	CV.init( width, height, d_min, d_max, 7, 2, 0.5, CostVolume::Staging::IO);
 
 	// Configure guided filter (GF)
-	std::vector<unsigned int> v6;
+/*	std::vector<unsigned int> v6;
 	v6.push_back( 0 );
 	v6.push_back( 1 );
     clutils::CLEnvInfo<2> infoGF (0, 0, 0, v6, 0);
@@ -145,7 +148,14 @@ int main(int argc, char* argv)
     GF.get (cl_algo::GF::GuidedFilter<Ip>::Memory::D_IN_I) = I1.get (GrayscaleFilter::Memory::D_OUT);
 	GF.get (cl_algo::GF::GuidedFilter<Ip>::Memory::D_IN_P) = CV.get (CostVolume::Memory::D_OUT);
     GF.get (cl_algo::GF::GuidedFilter<Ip>::Memory::D_OUT) = cl::Buffer (context, CL_MEM_READ_WRITE, bufferSize);
-    GF.init (width, height, gfRadius, gfEps, 0, 0.01f, cl_algo::GF::Staging::O); 
+    GF.init (width, height, gfRadius, gfEps, 0, 0.01f, cl_algo::GF::Staging::O);  */
+
+	std::vector<unsigned int> v7;
+	v7.push_back(0);
+	clutils::CLEnvInfo<1> infoBF(0, 0, 0, v7, 0);
+	CostAggregator CA (clEnv, infoBF);
+	CA.get( CostAggregator::Memory::D_IN) = CV.get( CostVolume::Memory::D_OUT);
+	CA.init(width, height, d_min, d_max, gfRadius, CostAggregator::Staging::IO);
 
 	// Start timing.
 	auto t_start = std::chrono::high_resolution_clock::now();
@@ -155,17 +165,16 @@ int main(int argc, char* argv)
 	I2.write (GrayscaleFilter::Memory::D_IN, (void*)imgR.datastart);
         
 	// Execute kernels	   
-	cl::Event eventL, eventR;
-    std::vector<cl::Event> waitListL (1), waitListR (1);
+	cl::Event eventL, eventR, cv_event;
+    std::vector<cl::Event> waitListL (1), waitListR (1), cvList (1);
     I1.run (nullptr, &eventL); waitListL[0] = eventL;
 	I2.run(nullptr, &eventR); waitListR[0] = eventR;
 	GradF_L.run( &waitListL );
 	GradF_R.run( &waitListR );
-	CV.run ();
-	for(int i=0; i<30; i++)
-		GF.run ();
+	CV.run (nullptr, &cv_event); cvList[0] = cv_event;
+	CA.run ();
 
-	// Copy results to host
+	// Copy results to host	
 	cost_out = (cl_float *)CV.read ();
 
 	// End time.
@@ -192,7 +201,7 @@ int main(int argc, char* argv)
 	cv::createTrackbar("Slice_No", "Cost", &cost_slice_num, 25, on_trackbar, (void*)cost_out );
 	on_trackbar(0, (void*)cost_out);
 
-	cl_float *filtered_cost = (cl_float*)GF.read();
+	cl_float *filtered_cost = (cl_float*)CA.read();
 	cv::Mat filtered(height, width, CV_32FC1, filtered_cost);
 	double min, max;
 	cv::minMaxIdx( filtered, &min, &max);

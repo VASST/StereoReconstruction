@@ -251,7 +251,7 @@ void CostVolume::init(int _width, int _height, int _d_min, int _d_max, int _cth,
 		dRGRADBufferIn = cl::Buffer( context, CL_MEM_READ_ONLY, bufferInSize);
 	// Out buffer is of size d_levels *width *height
     if (dBufferOut () == nullptr)
-        dBufferOut = cl::Buffer (context, CL_MEM_WRITE_ONLY, bufferOutSize);
+        dBufferOut = cl::Buffer (context, CL_MEM_READ_WRITE, bufferOutSize);
 
 	cost_calc.setArg( 0, dLBufferIn );
 	cost_calc.setArg( 1, dRBufferIn );

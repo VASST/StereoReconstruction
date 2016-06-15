@@ -49,8 +49,8 @@
 void on_trackbar(int, void*);
 unsigned int width, height;
 
-cl_float *cost_slice_mem, *cost_out;
-cv::Mat cost;
+cl_float *cost_slice_mem, *cost_out, *filtered_cost_out;
+cv::Mat cost, filtered_cost;
 
 
 int main(int argc, char* argv)
@@ -175,14 +175,16 @@ int main(int argc, char* argv)
 	CA.run ();
 
 	// Copy results to host	
-	cost_out = (cl_float *)CV.read ();
+
 
 	// End time.
 	auto t_end = std::chrono::high_resolution_clock::now();
 	std::cout << "Elapsed time  : "
 		<< std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start).count()
               << " ms." << std::endl;
-		
+
+	cost_out = (cl_float *)CV.read ();
+	filtered_cost_out = (cl_float*)CA.read();		
 
 	cv::imshow("Left_Image", imgL);
 	cv::moveWindow("Left_Image", 0, 0);
@@ -198,17 +200,11 @@ int main(int argc, char* argv)
 	cv::Mat adj;
 	cost.convertTo( adj, CV_8UC1, 255/max);*/
 	cv::namedWindow("Cost");
-	cv::createTrackbar("Slice_No", "Cost", &cost_slice_num, 25, on_trackbar, (void*)cost_out );
-	on_trackbar(0, (void*)cost_out);
+	cv::createTrackbar("Slice_No", "Cost", &cost_slice_num, (d_max-d_min), on_trackbar, (void*)cost_out );
 
-	cl_float *filtered_cost = (cl_float*)CA.read();
-	cv::Mat filtered(height, width, CV_32FC1, filtered_cost);
-	double min, max;
-	cv::minMaxIdx( filtered, &min, &max);
-	cv::Mat temp(height, width, CV_8UC1);
-	filtered.convertTo( temp, CV_8UC1, 255/(max-min)); 
-	cv::imshow("Filtered_Cost", temp);
-	cv::moveWindow("Filtered_Cost", 3*width, 0); 
+	cv::namedWindow("Filtered_Cost");
+	cv::createTrackbar("Slice_No", "Filtered_Cost", &cost_slice_num, (d_max-d_min), on_trackbar, (void*)filtered_cost_out);
+	on_trackbar(0, (void*)cost_out);
 
 	/* For debugging */
 	/*cl_float *debug_out = (cl_float *) I1.read();
@@ -230,7 +226,9 @@ int main(int argc, char* argv)
 void on_trackbar(int i , void* data)
 {
 	cost = cv::Mat(height, width, CV_32FC1);
-	memcpy(cost.data, cost_out + width*height*i, sizeof(cl_float)*width*height);
+	memcpy(cost.data, cost_out + width*height*i, sizeof(cl_float)*width*height);	
+	filtered_cost = cv::Mat(height, width, CV_32FC1);
+	memcpy(filtered_cost.data, filtered_cost_out + width*height*i, sizeof(cl_float)*width*height);	
 
 	// output cost needs to be rescaled to 0-255 range.
 	double min, max;
@@ -239,4 +237,10 @@ void on_trackbar(int i , void* data)
 	cost.convertTo( temp, CV_8UC1, 255/(max-min)); 
 	cv::imshow("Cost", temp );
 	cv::moveWindow("Cost", 2*width, 0);
+
+	cv::minMaxIdx( filtered_cost, &min, &max);
+	cv::Mat temp2(height, width, CV_8UC1);
+	filtered_cost.convertTo( temp2, CV_8UC1, 255/(max-min));	
+	cv::imshow("Filtered_Cost", temp2);
+	cv::moveWindow("Filtered_Cost", 3*width, 0);
 }

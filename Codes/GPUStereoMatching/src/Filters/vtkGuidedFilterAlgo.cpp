@@ -2408,16 +2408,26 @@ namespace GF
     {
         if (wgXdim == 1)
         {
+			kernelScan.setArg (0, dBufferIn);
+            kernelScan.setArg (1, dBufferOut);
+
             queue.enqueueNDRangeKernel (
                 kernelScan, cl::NullRange, globalScan, localScan, events, event);
         }
         else
         {
+			// Set buffers again in case the original pointer is changed
+			kernelScan.setArg (0, dBufferIn);
+            kernelScan.setArg (1, dBufferOut);
+
             queue.enqueueNDRangeKernel (
                 kernelScan, cl::NullRange, globalScan, localScan, events);
 
             queue.enqueueNDRangeKernel (
                 kernelSumsScan, cl::NullRange, globalSumsScan, localScan);
+
+			kernelAddSums.setArg (0, dBufferSums);
+            kernelAddSums.setArg (1, dBufferOut);
 
             queue.enqueueNDRangeKernel (
                 kernelAddSums, offsetAddSums, globalAddSums, localAddSums, nullptr, event);
@@ -3128,7 +3138,11 @@ namespace GF
      */
     void BoxFilterSAT::run (const std::vector<cl::Event> *events, cl::Event *event)
     {
-        sat.run (events);
+		sat.run (events);
+
+		kernel.setArg (0, sat.get (SAT::Memory::D_OUT));
+        kernel.setArg (1, dBufferOut);
+
         queue.enqueueNDRangeKernel (kernel, cl::NullRange, global, local, nullptr, event);
     }
 

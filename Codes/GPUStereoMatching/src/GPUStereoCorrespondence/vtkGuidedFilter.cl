@@ -1111,22 +1111,21 @@ void compute_cost(global float *L, global float *R,
 	const int gZ = get_global_id (2); // disparity direction
 
 	// volume id
-	int vid = gZ*gXdim*gYdim + gY*gXdim + gX; 
-	// Set output to INF
+	const int vid = gZ*gXdim*gYdim + gY*gXdim + gX; 
+	// Set output to 0
 	out[ vid ] = 0.0;
 	
 	// work-group ids
-	int wid = gY*gXdim + gX; 
+	const int wid = gY*gXdim + gX; 
 
 	// disparity 
-	int d = d_min + gZ;
-
+	const int d = d_min + gZ;
+			
+	float data_term = (1-alpha)*color_th + alpha*grad_th;
 	if( (0 <= gX+d) && ((gX+d) <= gXdim) )
 	{
 
 		int vx = 2*(patch_r-1)+1;
-
-		float data_term = 0.f; 
 
 		if( patch_r <=gX && gX<=gXdim-patch_r && patch_r <gY && gY<=gYdim-patch_r) // check bounds
 		{
@@ -1165,8 +1164,8 @@ void compute_cost(global float *L, global float *R,
 
 			// Similarity measures
 			float zncc = num/sqrt(den);	
-			float absolute_diff   = brightness_cost( (float)L[ wid ], (float)R[ wid + d ], color_th );
-			float gradient_cost = grad_cost( (float)gradL[ wid ], (float)gradR[ wid + d ], grad_th);
+			float absolute_diff   = brightness_cost( L[ wid ], R[ wid + d ], color_th );
+			float gradient_cost   = grad_cost( gradL[ wid ], gradR[ wid + d ], grad_th);
 
 			switch( similarity )
 			{
@@ -1186,7 +1185,44 @@ void compute_cost(global float *L, global float *R,
 					break;
 			}
 
-			out[ vid ] = data_term;
 		} 
+		out[ vid ] = data_term;
 	}
 }
+
+
+/*! \brief Performs WTA optimization on a width*height*d volume
+ * \param[in] in input buffer
+ * \pram[out[ out output buffer
+ */
+kernel 
+void WTA_Optimizer(global float *in, global float *out, int d_min,int n)
+{
+	// Workspace dimensions
+    const int gXdim = get_global_size (0);
+	const int gYdim = get_global_size (1);
+
+    // Workspace indices
+    const int gX = get_global_id (0);
+    const int gY = get_global_id (1);
+
+	const int d_max = n + d_min +1;
+
+	if( gX <= gXdim - d_max )
+	{
+		float cost = 100000.f;
+		// WTA
+		for(int i=0; i<n; i++)
+		{
+			float data = in[ i*gXdim*gYdim + gY*gXdim + gX ];
+			if( cost >= data  )
+			{
+				cost = data;
+				out[gY*gXdim + gX] = (float)(d_max - i);
+			}
+		}
+	}
+	else
+		out[gY*gXdim + gX] = 0.f;
+}
+

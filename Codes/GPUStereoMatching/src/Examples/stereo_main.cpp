@@ -40,16 +40,21 @@
 #include <CostVolume.hpp>
 #include <vtkGuidedFilterAlgo.hpp>
 #include <BFCostAggregator.hpp>
+#include <DisparityOptimizer.hpp>
 
 // Opencv includes
 #include <cv.hpp>
 #include <highgui.h>
 
+// For debugging
+void compute_cost_volume(cv::Mat *, cv::Mat *);
+
 // Slider call-back
 void on_trackbar(int, void*);
+void on_trackbar_debug(int, void *);
 unsigned int width, height;
 
-cl_float *cost_slice_mem, *cost_out, *filtered_cost_out;
+cl_float *cost_slice_mem, *cost_out, *filtered_cost_out, *cost_cv_debug;
 cv::Mat cost, filtered_cost;
 
 
@@ -59,16 +64,22 @@ int main(int argc, char* argv)
 	//cv::Mat imgR = cv::imread("../Data/demoR.jpg");
 	cv::Mat imgL = cv::imread("../Data/000001-hL.png");
 	cv::Mat imgR = cv::imread("../Data/000001-hR.png");
+	//cv::Mat imgL = cv::imread("../Data/im-dL.png");
+	//cv::Mat imgR = cv::imread("../Data/im-dL.png");
+
+	
 
 	/*cv::Mat temp(480/2, 640/2, imgL.type());
 	cv::resize(imgL, temp, cv::Size(320, 240),CV_INTER_LINEAR);
-	cv::imwrite("000001-hL.png", temp);
+	cv::imwrite("im-dL.png", temp);
 	cv::resize(imgR, temp, cv::Size(320, 240),CV_INTER_LINEAR);
-	cv::imwrite("000001-hR.png", temp); */
+	cv::imwrite("im-dR.png", temp);*/ 
 
 	width = imgL.cols;  height = imgL.rows;
 	const unsigned int bufferSize = width * height * sizeof (cl_float);
 	const unsigned int channels(imgL.channels());
+
+	//compute_cost_volume(&imgL, &imgR);
 
 	const unsigned int gfRadius = 9;
     const float gfEps = 0.1;
@@ -136,7 +147,7 @@ int main(int argc, char* argv)
 	CV.get ( CostVolume::Memory::D_IN_LGRAD ) = GradF_L.get( GradientFilter::Memory::D_OUT);
 	CV.get ( CostVolume::Memory::D_IN_R ) = I2.get(GrayscaleFilter::Memory::D_OUT);
 	CV.get ( CostVolume::Memory::D_IN_RGRAD ) = GradF_R.get( GradientFilter::Memory::D_OUT);
-	CV.init( width, height, d_min, d_max, 7, 2, 0.5, CostVolume::Staging::IO);
+	CV.init( width, height, d_min, d_max, 7, 2, 0.1, CostVolume::Staging::O);
 
 	// Configure guided filter (GF)
 /*	std::vector<unsigned int> v6;
@@ -155,7 +166,14 @@ int main(int argc, char* argv)
 	clutils::CLEnvInfo<1> infoBF(0, 0, 0, v7, 0);
 	CostAggregator CA (clEnv, infoBF);
 	CA.get( CostAggregator::Memory::D_IN) = CV.get( CostVolume::Memory::D_OUT);
-	CA.init(width, height, d_min, d_max, gfRadius, CostAggregator::Staging::IO);
+	CA.init(width, height, d_min, d_max, gfRadius, CostAggregator::Staging::O);
+
+	std::vector<unsigned int> v8;
+	v8.push_back(0);
+	clutils::CLEnvInfo<1> infoOptimizer(0, 0, 0, v8, 0);
+	DisparityOptimizer DO(clEnv, infoOptimizer);
+	DO.get( DisparityOptimizer::Memory::D_IN ) = CA.get( CostAggregator::Memory::D_OUT);
+	DO.init( width, height, d_min, d_max, DisparityOptimizer::Staging::O); 
 
 	// Start timing.
 	auto t_start = std::chrono::high_resolution_clock::now();
@@ -173,9 +191,10 @@ int main(int argc, char* argv)
 	GradF_R.run( &waitListR );
 	CV.run (nullptr, &cv_event); cvList[0] = cv_event;
 	CA.run ();
+	DO.run ();
 
 	// Copy results to host	
-
+	cl_float *disparity = (cl_float *)DO.read ();
 
 	// End time.
 	auto t_end = std::chrono::high_resolution_clock::now();
@@ -191,14 +210,18 @@ int main(int argc, char* argv)
 	cv::imshow("Right_Image", imgR);
 	cv::moveWindow("Right_Image", width, 0);
 
+	cv::Mat disparity_img_f(height, width, CV_32FC1, disparity);
+	double min, max;
+	cv::minMaxIdx( disparity_img_f, &min, &max);
+	cv::Mat disparity_img(height, width, CV_8UC1);
+	disparity_img_f.convertTo( disparity_img, CV_8UC1, 255/(max-min)); 
+	cv::imshow("Disparity", disparity_img );
+	cv::moveWindow("Disparity", 4*width, 0);
+
+
 	int cost_slice_num = 0;
 	cost_slice_mem = new float[ width*height ];
 	
-
-	/*double min, max;
-	cv::minMaxIdx(cost, &min, &max);
-	cv::Mat adj;
-	cost.convertTo( adj, CV_8UC1, 255/max);*/
 	cv::namedWindow("Cost");
 	cv::createTrackbar("Slice_No", "Cost", &cost_slice_num, (d_max-d_min), on_trackbar, (void*)cost_out );
 
@@ -243,4 +266,47 @@ void on_trackbar(int i , void* data)
 	filtered_cost.convertTo( temp2, CV_8UC1, 255/(max-min));	
 	cv::imshow("Filtered_Cost", temp2);
 	cv::moveWindow("Filtered_Cost", 3*width, 0);
+}
+
+void compute_cost_volume(cv::Mat *img1, cv::Mat *img2)
+{
+	cv::Mat imgG1(img1->size(), CV_8UC1);
+	cv::Mat imgG2(img2->size(), CV_8UC1);
+
+	cv::cvtColor( *img1, imgG1, CV_RGB2GRAY);
+	cv::cvtColor( *img2, imgG2, CV_RGB2GRAY);
+
+	int d_max = 30;
+	int d_min = 5;
+	
+	cost_cv_debug = new float[ img1->rows*img1->cols*d_max];
+
+	for( int d=d_min; d<d_max; d++)
+	{
+		for(int y=0; y<imgG1.rows; y++)
+		{
+			for(int x=0; x<imgG1.cols; x++)
+			{
+				cost_cv_debug[ (d-d_min)*img1->rows*img1->cols + y*img1->cols + x ] = (float)abs(imgG1.data[ y*imgG1.cols + x ] - imgG2.data[ y*imgG2.cols + x + d ] );
+			}
+		}
+	}
+
+	int i=0;
+	cv::namedWindow("Cost_Debug");
+	cv::createTrackbar("Cost_Debug_TB", "Cost_Debug", &i, d_max-1, on_trackbar_debug);
+	on_trackbar_debug(0, (void*)cost_cv_debug);
+}
+
+void on_trackbar_debug(int i , void* data)
+{
+	cv::Mat out(height, width, CV_32FC1);
+	memcpy(out.data, cost_cv_debug + i*height*width, height*width*sizeof(float));
+
+	cv::Mat temp(height, width, CV_8UC1);
+	double min, max;
+	cv::minMaxIdx( out, &min, &max);
+	out.convertTo( temp, CV_8UC1, 255/(max-min)); 
+
+	cv::imshow("Cost_Debug", temp);
 }

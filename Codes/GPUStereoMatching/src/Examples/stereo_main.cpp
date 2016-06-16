@@ -41,6 +41,7 @@
 #include <vtkGuidedFilterAlgo.hpp>
 #include <BFCostAggregator.hpp>
 #include <DisparityOptimizer.hpp>
+#include <pgm.h>
 
 // Opencv includes
 #include <cv.hpp>
@@ -48,6 +49,7 @@
 
 // For debugging
 void compute_cost_volume(cv::Mat *, cv::Mat *);
+cv::Mat get_ground_truth(const char *);
 
 // Slider call-back
 void on_trackbar(int, void*);
@@ -62,18 +64,27 @@ int main(int argc, char* argv)
 {
 	//cv::Mat imgL = cv::imread("../Data/demoL.jpg");
 	//cv::Mat imgR = cv::imread("../Data/demoR.jpg");
-	cv::Mat imgL = cv::imread("../Data/000001-hL.png");
-	cv::Mat imgR = cv::imread("../Data/000001-hR.png");
+	//cv::Mat imgL = cv::imread("../Data/000001-hL.png");
+	//cv::Mat imgR = cv::imread("../Data/000001-hR.png");
 	//cv::Mat imgL = cv::imread("../Data/im-dL.png");
 	//cv::Mat imgR = cv::imread("../Data/im-dL.png");
+	cv::Mat imgL = cv::imread("../Data/tsukuba/imL.png");
+	cv::Mat imgR = cv::imread("../Data/tsukuba/imR.png");
+
+	//cv::imshow("Test", imgL);
+	//cv::waitKey(0);
+
+
+	//std::string ground_truth_file = "../Data/tsukuba/disp2.pgm";
+	//get_ground_truth(ground_truth_file.c_str());
 
 	
 
 	/*cv::Mat temp(480/2, 640/2, imgL.type());
 	cv::resize(imgL, temp, cv::Size(320, 240),CV_INTER_LINEAR);
-	cv::imwrite("im-dL.png", temp);
+	cv::imwrite("../Data/tsukuba/im-dL.png", temp);
 	cv::resize(imgR, temp, cv::Size(320, 240),CV_INTER_LINEAR);
-	cv::imwrite("im-dR.png", temp);*/ 
+	cv::imwrite("../Data/tsukuba/im-dR.png", temp); */
 
 	width = imgL.cols;  height = imgL.rows;
 	const unsigned int bufferSize = width * height * sizeof (cl_float);
@@ -81,10 +92,13 @@ int main(int argc, char* argv)
 
 	//compute_cost_volume(&imgL, &imgR);
 
-	const unsigned int gfRadius = 9;
+	const unsigned int gfRadius = 5;
     const float gfEps = 0.1;
-	const int d_max = 30; 
-	const int d_min = 5;
+	const int d_max = 20; 
+	const int d_min = 0;
+	const int color_th = 7;
+	const int grad_th = 2;
+	const double alpha = 0.5;
 
 	/* CPU DX computation */
 	cv::Mat bgr[3];
@@ -147,7 +161,7 @@ int main(int argc, char* argv)
 	CV.get ( CostVolume::Memory::D_IN_LGRAD ) = GradF_L.get( GradientFilter::Memory::D_OUT);
 	CV.get ( CostVolume::Memory::D_IN_R ) = I2.get(GrayscaleFilter::Memory::D_OUT);
 	CV.get ( CostVolume::Memory::D_IN_RGRAD ) = GradF_R.get( GradientFilter::Memory::D_OUT);
-	CV.init( width, height, d_min, d_max, 7, 2, 0.1, CostVolume::Staging::O);
+	CV.init( width, height, d_min, d_max, color_th, grad_th, alpha, CostVolume::Staging::O);
 
 	// Configure guided filter (GF)
 /*	std::vector<unsigned int> v6;
@@ -272,14 +286,21 @@ void compute_cost_volume(cv::Mat *img1, cv::Mat *img2)
 {
 	cv::Mat imgG1(img1->size(), CV_8UC1);
 	cv::Mat imgG2(img2->size(), CV_8UC1);
+	cv::Mat imgGrad1(img1->size(), CV_8UC1);
+	cv::Mat imgGrad2(img1->size(), CV_8UC1);
 
 	cv::cvtColor( *img1, imgG1, CV_RGB2GRAY);
 	cv::cvtColor( *img2, imgG2, CV_RGB2GRAY);
 
-	int d_max = 30;
-	int d_min = 5;
+	// Gradient
+	cv::Sobel(imgG1, imgGrad1, CV_8UC1, 1, 0); 
+	cv::Sobel(imgG2, imgGrad2, CV_8UC1, 1, 0); 
+
+	int d_max = 15;
+	int d_min = -15;
+	float alpha = 0.5;
 	
-	cost_cv_debug = new float[ img1->rows*img1->cols*d_max];
+	cost_cv_debug = new float[ img1->rows*img1->cols*(d_max-d_min+1)];
 
 	for( int d=d_min; d<d_max; d++)
 	{
@@ -287,7 +308,14 @@ void compute_cost_volume(cv::Mat *img1, cv::Mat *img2)
 		{
 			for(int x=0; x<imgG1.cols; x++)
 			{
-				cost_cv_debug[ (d-d_min)*img1->rows*img1->cols + y*img1->cols + x ] = (float)abs(imgG1.data[ y*imgG1.cols + x ] - imgG2.data[ y*imgG2.cols + x + d ] );
+				if( 0 < d+x && d+x < width )
+				{
+					float color_cost = (float)abs(imgG1.data[ y*imgG1.cols + x ] - imgG2.data[ y*imgG2.cols + x + d ] );
+					float grad_cost = (float)abs(imgGrad1.data[ y*imgG1.cols + x ] - imgGrad2.data[ y*imgG2.cols + x + d ] );
+					cost_cv_debug[ abs(d-d_min)*img1->rows*img1->cols + y*img1->cols + x ] = (1-alpha)*color_cost + alpha*grad_cost;
+				}
+				else
+					cost_cv_debug[ abs(d-d_min)*img1->rows*img1->cols + y*img1->cols + x ] = 0;
 			}
 		}
 	}
@@ -309,4 +337,17 @@ void on_trackbar_debug(int i , void* data)
 	out.convertTo( temp, CV_8UC1, 255/(max-min)); 
 
 	cv::imshow("Cost_Debug", temp);
+}
+
+cv::Mat get_ground_truth(const char * filename)
+{
+	PGMImage *img = new PGMImage();
+
+	// Read PGM file
+	getPGMfile( (char*)filename , img);
+
+	cv::Mat out(img->height, img->width, CV_8UC1, img->data);
+	cv::imshow("GT", out);
+
+	return out;
 }

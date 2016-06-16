@@ -6,10 +6,11 @@ include_directories( ${OpenCV_INCLUDE_DIRS} )
 include_directories ( ${Common_INCLUDES} )
 include_directories ( ${GPUStereoCorrespondence_INCLUDES} )
 include_directories( ${Filters_INCLUDES} )
+include_directories( ${ThirdParty_INCLUDES})
 
 add_executable(GPU_StereoMatcher_Example stereo_main.cpp)
 
-target_link_libraries( GPU_StereoMatcher_Example Common Filters GPUStereoCorrespondence ${OpenCV_LIBRARIES} ${OpenCL_LIBRARIES} )
+target_link_libraries( GPU_StereoMatcher_Example Common Filters ThirdParty GPUStereoCorrespondence ${OpenCV_LIBRARIES} ${OpenCL_LIBRARIES} )
 
 add_executable( GPU_GuidedFilter_Example guided_filter_main.cpp)
 

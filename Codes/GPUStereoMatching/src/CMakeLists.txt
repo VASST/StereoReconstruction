@@ -15,7 +15,7 @@ find_package( Eigen3 REQUIRED )
 set ( Common_INCLUDES ${PROJECT_SOURCE_DIR}/Common)
 set ( GPUStereoCorrespondence_INCLUDES ${PROJECT_SOURCE_DIR}/GPUStereoCorrespondence)
 set ( Filters_INCLUDES ${PROJECT_SOURCE_DIR}/Filters)
-set ( ThirdParty_INCLUDES $PROJECT_SOURCE_DIR}/ThirdParty )
+set ( ThirdParty_INCLUDES ${PROJECT_SOURCE_DIR}/ThirdParty )
 
 include_directories ( 
 	${OpenCL_INCLUDE_DIR} 

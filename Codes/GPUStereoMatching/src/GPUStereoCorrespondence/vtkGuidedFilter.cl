@@ -1122,7 +1122,7 @@ void compute_cost(global float *L, global float *R,
 	const int d = d_min + gZ;
 			
 	float data_term = (1-alpha)*color_th + alpha*grad_th;
-	if( (0 <= gX+d) && ((gX+d) <= gXdim) )
+	if( 0 <= gX-d )
 	{
 
 		int vx = 2*(patch_r-1)+1;
@@ -1148,7 +1148,7 @@ void compute_cost(global float *L, global float *R,
 				img_idx = wid + k*gXdim + j;
 
 				float _I_L = L[img_idx];
-				float _I_R = R[img_idx + d ];
+				float _I_R = R[img_idx - d ];
 
 				sumL += _I_L;
 				sumR += _I_R;
@@ -1164,8 +1164,8 @@ void compute_cost(global float *L, global float *R,
 
 			// Similarity measures
 			float zncc = num/sqrt(den);	
-			float absolute_diff   = brightness_cost( L[ wid ], R[ wid + d ], color_th );
-			float gradient_cost   = grad_cost( gradL[ wid ], gradR[ wid + d ], grad_th);
+			float absolute_diff   = brightness_cost( L[ wid ], R[ wid - d ], color_th );
+			float gradient_cost   = grad_cost( gradL[ wid ], gradR[ wid - d ], grad_th);
 
 			switch( similarity )
 			{
@@ -1208,7 +1208,7 @@ void WTA_Optimizer(global float *in, global float *out, int d_min,int n)
 
 	const int d_max = n + d_min +1;
 
-	if( gX <= gXdim - d_max )
+	if( 0 <= gX-d_max )
 	{
 		float cost = 100000.f;
 		// WTA
@@ -1218,7 +1218,7 @@ void WTA_Optimizer(global float *in, global float *out, int d_min,int n)
 			if( cost >= data  )
 			{
 				cost = data;
-				out[gY*gXdim + gX] = (float)(d_max - i);
+				out[gY*gXdim + gX] = (float)(d_min + i);
 			}
 		}
 	}

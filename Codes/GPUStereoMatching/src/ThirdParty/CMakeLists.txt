@@ -1,4 +1,5 @@
-add_library ( ThirdParty pgm.h pgm.cpp)
+add_library ( ThirdParty pgm.h pgm.cpp
+				JointWMF.hpp)
 
 target_link_libraries ( 
 	ThirdParty 

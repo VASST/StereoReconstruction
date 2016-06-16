@@ -42,6 +42,7 @@
 #include <BFCostAggregator.hpp>
 #include <DisparityOptimizer.hpp>
 #include <pgm.h>
+#include <JointWMF.hpp>
 
 // Opencv includes
 #include <cv.hpp>
@@ -94,11 +95,11 @@ int main(int argc, char* argv)
 
 	const unsigned int gfRadius = 5;
     const float gfEps = 0.1;
-	const int d_max = 20; 
-	const int d_min = 0;
+	const int d_max = 30; 
+	const int d_min = 5;
 	const int color_th = 7;
-	const int grad_th = 2;
-	const double alpha = 0.5;
+	const int grad_th = 4;
+	const double alpha = 0.6;
 
 	/* CPU DX computation */
 	cv::Mat bgr[3];
@@ -231,6 +232,10 @@ int main(int argc, char* argv)
 	disparity_img_f.convertTo( disparity_img, CV_8UC1, 255/(max-min)); 
 	cv::imshow("Disparity", disparity_img );
 	cv::moveWindow("Disparity", 4*width, 0);
+
+	// WMF the disparity image
+	cv::Mat c = JointWMF::filter(disparity_img, imgL, 3);
+	cv::imshow("Filtered_Disparity", c);
 
 
 	int cost_slice_num = 0;

@@ -69,8 +69,10 @@ int main(int argc, char* argv)
 	//cv::Mat imgR = cv::imread("../Data/000001-hR.png");
 	//cv::Mat imgL = cv::imread("../Data/im-dL.png");
 	//cv::Mat imgR = cv::imread("../Data/im-dL.png");
-	cv::Mat imgL = cv::imread("../Data/tsukuba/imL.png");
-	cv::Mat imgR = cv::imread("../Data/tsukuba/imR.png");
+	//cv::Mat imgL = cv::imread("../Data/tsukuba/imL.png");
+	//cv::Mat imgR = cv::imread("../Data/tsukuba/imR.png");
+	cv::Mat imgL = cv::imread("../Data/teddy/im-dL.png");
+	cv::Mat imgR = cv::imread("../Data/teddy/im-dR.png");
 
 	//cv::imshow("Test", imgL);
 	//cv::waitKey(0);
@@ -83,9 +85,9 @@ int main(int argc, char* argv)
 
 	/*cv::Mat temp(480/2, 640/2, imgL.type());
 	cv::resize(imgL, temp, cv::Size(320, 240),CV_INTER_LINEAR);
-	cv::imwrite("../Data/tsukuba/im-dL.png", temp);
+	cv::imwrite("../Data/teddy/im-dL.png", temp);
 	cv::resize(imgR, temp, cv::Size(320, 240),CV_INTER_LINEAR);
-	cv::imwrite("../Data/tsukuba/im-dR.png", temp); */
+	cv::imwrite("../Data/teddy/im-dR.png", temp); */
 
 	width = imgL.cols;  height = imgL.rows;
 	const unsigned int bufferSize = width * height * sizeof (cl_float);
@@ -96,7 +98,7 @@ int main(int argc, char* argv)
 	const unsigned int gfRadius = 5;
     const float gfEps = 0.1;
 	const int d_max = 30; 
-	const int d_min = 5;
+	const int d_min = 10;
 	const int color_th = 7;
 	const int grad_th = 4;
 	const double alpha = 0.6;
@@ -229,13 +231,17 @@ int main(int argc, char* argv)
 	double min, max;
 	cv::minMaxIdx( disparity_img_f, &min, &max);
 	cv::Mat disparity_img(height, width, CV_8UC1);
-	disparity_img_f.convertTo( disparity_img, CV_8UC1, 255/(max-min)); 
+	disparity_img_f.convertTo( disparity_img, CV_8UC1, 255.0/(max-min), -min*255.0/(max-min)); 
 	cv::imshow("Disparity", disparity_img );
 	cv::moveWindow("Disparity", 4*width, 0);
 
 	// WMF the disparity image
-	cv::Mat c = JointWMF::filter(disparity_img, imgL, 3);
-	cv::imshow("Filtered_Disparity", c);
+	cv::Mat WMF_disparity = JointWMF::filter(disparity_img, imgL, 3);
+
+	cv::Mat color_map;
+	cv::applyColorMap(WMF_disparity, color_map, cv::COLORMAP_COOL);
+	cv::imshow("Filtered_Colored_Disparity", color_map);
+	cv::moveWindow("Filtered_Colored_Disparity", 4*width, height+50);
 
 
 	int cost_slice_num = 0;

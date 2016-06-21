@@ -1014,6 +1014,38 @@ void x_gradient (global float *p_in, global float *p_out)
 									islessequal (0.f,  (float)lidx) && islessequal ( (float)ridx , (float)gXdim) ) ; 
 } 
 
+/*! \brief Perform computation of the derivative along x-y axes. 
+ * \param[in] in input array of float elements
+ * \param[out] out_x output array of x gradient
+ * \param[out] out_y output array of y gradient
+ */
+kernel
+void gradient( global float *in, global float *out_x, global float *out_y)
+{
+    // Workspace dimensions
+    const int gXdim = get_global_size (0);
+	const int gYdim = get_global_size (1);
+
+    // Workspace indices
+    const int gX = get_global_id (0);
+    const int gY = get_global_id (1);
+
+    // Filter window coordinates
+	int lidx = gX-1;
+	int ridx = gX+1;
+	int uidx = gY +1;
+	int didx = gY -1;
+
+	// Output ( X gradient )
+	out_x[ gY*gXdim + gX ] = select( 0.f, .5f*in[ gY*gXdim + ridx ] - .5f*in[ gY*gXdim + lidx], 
+									islessequal (0.f,  (float)lidx) && islessequal ( (float)ridx , (float)gXdim) ) ; 
+
+	// Output ( Y gradient )
+	out_y[ gY*gXdim + gX ] = select( 0.f, .5f*in[ uidx*gXdim + gX ] - .5f*in[ didx*gXdim + gX], 
+									islessequal (0.f,  (float)didx) && islessequal ( (float)uidx , (float)gYdim) ) ; 
+
+}
+
 
 /*! \brief Performs sobel filtering along x and y directions.
  * \param[in] src input array of float elements.
@@ -1098,7 +1130,8 @@ kernel
 void compute_cost(global float *L, global float *R, 
 					 global float *gradL, global float *gradR, global float *out, 
 					 int patch_r, 
-					 int d_min, int d_max, float color_th, float grad_th, float alpha, int similarity, float inf)
+					 int d_min, int d_max, float color_th, float grad_th, float alpha, 
+					 int similarity, int reference_img , float inf)
 {
     // Workspace dimensions
     const int gXdim = get_global_size (0);
@@ -1122,12 +1155,15 @@ void compute_cost(global float *L, global float *R,
 	const int d = d_min + gZ;
 			
 	float data_term = (1-alpha)*color_th + alpha*grad_th;
+	
+	// NOTE: For a rectified image-pair, the disparity ranges from 0-d_max. The corresponding pixel in the right
+	// image always occur towards the left of the pixel in the left image. So, (IL, IR-d)
 	if( 0 <= gX-d )
 	{
 
 		int vx = 2*(patch_r-1)+1;
 
-		if( patch_r <=gX && gX<=gXdim-patch_r && patch_r <gY && gY<=gYdim-patch_r) // check bounds
+		if( patch_r <=gX && gX<=gXdim-patch_r-1 && patch_r <gY && gY<=gYdim-patch_r-1) // check bounds
 		{
 
 			// Compute ZNCC
@@ -1164,8 +1200,20 @@ void compute_cost(global float *L, global float *R,
 
 			// Similarity measures
 			float zncc = num/sqrt(den);	
-			float absolute_diff   = brightness_cost( L[ wid ], R[ wid - d ], color_th );
-			float gradient_cost   = grad_cost( gradL[ wid ], gradR[ wid - d ], grad_th);
+			float absolute_diff = 0.f;
+			float gradient_cost = 0.f;
+
+			switch( reference_img )
+			{
+			case 1:
+				absolute_diff   = brightness_cost( L[ wid ], R[ wid - d ], color_th );
+				gradient_cost   = grad_cost( gradL[ wid ], gradR[ wid - d ], grad_th);
+				break;
+
+			case 2:
+				absolute_diff   = brightness_cost( L[ wid ], R[ wid + d ], color_th );
+				gradient_cost   = grad_cost( gradL[ wid ], gradR[ wid + d ], grad_th);
+			}
 
 			switch( similarity )
 			{
@@ -1226,3 +1274,139 @@ void WTA_Optimizer(global float *in, global float *out, int d_min,int n)
 		out[gY*gXdim + gX] = 0.f;
 }
 
+// CL kernels for Chang et. al. ,MICCAI 2013
+// Diffusion tensor D = exp( -alpha*(nabla(I))^beta)
+/*! \brief Compute the Diffusion tensor for a given image
+ * \param[in] img_grad_x pointer to the X gradient of the image. 
+ * \param[[in] img_grad_y pointer to the Y gradient of the image. 
+ * \param[out] tensor output tensor for diffusion tensors stored in the following order [Dxx Dxy Dyx Dyy] .. 
+ *             So this array is 4*width*height long. 
+ */
+kernel
+void DiffuseTensor(global float *img_grad_x, global float *img_grad_y, global float *tensor, float alpha, float beta, int max_d, int radius)
+{
+	// Workspace dimensions
+    const int gXdim = get_global_size (0);
+	const int gYdim = get_global_size (1);
+
+    // Workspace indices
+    const int gX = get_global_id (0);
+    const int gY = get_global_id (1);
+
+
+	if( radius < gX && gX < gXdim+radius-1 && gY < gYdim-radius-1 && max_d+radius < gY)
+	{
+		float nabla_img[2];
+		nabla_img[0] = img_grad_x[ gY*gXdim + gX ];
+		nabla_img[1] = img_grad_y[ gY*gXdim + gX ];
+
+		float norm_nabla_img = sqrt( nabla_img[0]*nabla_img[0] + nabla_img[1]*nabla_img[1] );
+
+		float edge_weight = exp( -alpha*pow(norm_nabla_img, beta));
+
+		if( norm_nabla_img > 0 )
+		{
+			float n[2], p_n[2];
+
+			n[0] = nabla_img[0]/norm_nabla_img;
+			n[1] = nabla_img[1]/norm_nabla_img;
+			p_n[0] = -n[1];
+			p_n[1] = n[0];
+
+			/* Diffusion tensor indexed as [0 2; 1 3] */
+			int id = gY*gXdim + gX;
+			tensor[ id ]   = edge_weight*(n[0]*n[0]) + p_n[0]*p_n[0];
+			tensor[ id+1 ] = edge_weight*(n[1]*n[0]) + p_n[1]*p_n[0];
+			tensor[ id+2 ] = edge_weight*(n[0]*n[1]) + p_n[0]*p_n[1];
+			tensor[ id+3 ] = edge_weight*(n[1]*n[1]) + p_n[1]*p_n[1];
+		}
+		else
+		{
+			int id = gY*gXdim + gX;
+			tensor[ id ]   = edge_weight;
+			tensor[ id+1 ] = 0.f;
+			tensor[ id+2 ] = 0.f;
+			tensor[ id+3 ] = edge_weight; 
+		}
+
+	}
+}
+
+/*! \brief Diffusion Preconditioning
+ * \param[in] diffusion_tensor input pointer to Diffusion Tensor array 
+ */
+kernel 
+void DiffusionPreconditioning(global float *diffusion_tensor, global float *dual_step_sigma0, global float *dual_step_sigma1, 
+										global float *primal_step_tau, 
+											int max_d, int radius)
+{
+	// Workspace dimensions
+    const int gXdim = get_global_size (0);
+	const int gYdim = get_global_size (1);
+
+    // Workspace indices
+    const int gX = get_global_id (0);
+    const int gY = get_global_id (1);
+
+	if( gX < gXdim-radius && radius < gX && gY < gYdim-radius && max_d+radius < gY )
+	{
+		float D[4], Dx[4], Dy[4];
+
+		const int idx = gY*gXdim + gX;
+
+		D[0] = diffusion_tensor[ idx ];
+		D[1] = diffusion_tensor[ idx+1 ];
+		D[2] = diffusion_tensor[ idx+2 ];
+		D[3] = diffusion_tensor[ idx+3 ];
+
+		Dx[0] = diffusion_tensor[ idx-4 ];
+		Dx[1] = diffusion_tensor[ idx-3 ];
+		Dx[2] = diffusion_tensor[ idx-2 ];
+		Dx[3] = diffusion_tensor[ idx-1 ];
+
+		Dy[0] = diffusion_tensor[ idx - gXdim ];
+		Dy[1] = diffusion_tensor[ idx - gXdim +1 ];
+		Dy[2] = diffusion_tensor[ idx - gXdim +2 ];
+		Dy[3] = diffusion_tensor[ idx - gXdim +3 ];
+
+		/* D*nabla sum */
+		if( gX < gXdim-radius-1)
+			dual_step_sigma0[  idx ] = 2*fabs(D[0]) + 2*fabs(D[2]);
+
+		if( gY < gYdim -radius -1)
+			dual_step_sigma1[ idx ]  = 2*fabs(D[1]) + 2*fabs(D[3]);
+
+		float val = dual_step_sigma0[ idx ]; 
+
+		dual_step_sigma0[ idx ] = select( 1.f/val , 0.f, val == 0.f); 
+		dual_step_sigma1[ idx ] = select( 1.f/val, 0.f, val == 0.f); 
+
+		/* D*nabla sum */
+		primal_step_tau[ idx ] += fabs(D[0]) + fabs(D[2]);
+		primal_step_tau[ idx ] += fabs(D[1]) + fabs(D[3]);
+
+		if( gX > radius && gY > max_d + radius)
+			primal_step_tau[ idx ] += fabs(Dx[0]) + fabs(Dx[3]);
+
+		if( gX == radius && gY < max_d+radius)
+			primal_step_tau[ idx ] += fabs(Dy[3]);
+
+		if( gY == max_d + radius && gX > radius)
+			primal_step_tau[ idx ] += fabs(Dx[0]);
+		
+		val = primal_step_tau[ idx ];
+		primal_step_tau[ idx ] =select(1.f/val , 0.f,val == 0.f); 
+	}
+
+}
+		
+
+/*! \brief Huber-L2 Preconditioning dual updating kernel
+ * \param[in] 
+ */
+kernel
+void HuberL2DualUpdate(global float *dual, float epsilon, int max_d, int radius)
+{
+
+
+}

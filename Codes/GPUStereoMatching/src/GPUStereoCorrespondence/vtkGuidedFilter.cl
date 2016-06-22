@@ -1405,8 +1405,54 @@ void DiffusionPreconditioning(global float *diffusion_tensor, global float *dual
  * \param[in] 
  */
 kernel
-void HuberL2DualUpdate(global float *dual, float epsilon, int max_d, int radius)
+void HuberL2DualUpdate(global float *diffusion_tensor, global float *head_primal, global float *dual_step_sigma0, global float *dual_step_sigma1,
+								global float *dual_p0, global float *dual_p1, float epsilon, int max_d, int radius)
 {
+	// Workspace dimensions
+    const int gXdim = get_global_size (0);
+	const int gYdim = get_global_size (1);
 
+    // Workspace indices
+    const int gX = get_global_id (0);
+    const int gY = get_global_id (1);
 
+	if( gX < gXdim-radius && radius <= gX && gY < gYdim-radius && max_d+radius <= gY )
+	{
+		float D_nabla_primal[2], sigma[2], D[4];
+
+		int idx = gY*gXdim + gX;
+		
+		D[0] = diffusion_tensor[ idx ];
+		D[1] = diffusion_tensor[ idx+1 ];
+		D[2] = diffusion_tensor[ idx+2 ];
+		D[3] = diffusion_tensor[ idx+3 ];
+
+		if( gX < gXdim-radius-1 )
+			D_nabla_primal[0] = -(D[0]+D[2])*head_primal[ idx ] +
+									D[0]*head_primal[ idx + 1 ] + D[2]*head_primal[ idx + gXdim]; 
+
+		if( gY < gYdim-radius-1)
+			D_nabla_primal[1] = -(D[1]+D[3])*head_primal[ idx ] +
+									D[1]*head_primal[ idx + 1 ] + D[3]*head_primal[ idx + gXdim ];
+
+		if( gX == gXdim-radius-1)
+			D_nabla_primal[1] = -(D[1]+D[3])*head_primal[ idx ] + D[3]*head_primal[ idx + gXdim ];
+
+		if( gY == gYdim-radius-1)
+			D_nabla_primal[0] = -(D[0]+D[2])*head_primal[ idx ] + D[0]*head_primal[ idx + 1 ];
+
+		sigma[0] = dual_step_sigma0[ idx ];
+		sigma[1] = dual_step_sigma1[ idx ];
+
+		
+		dual_p0[ idx ] = (dual_p0[ idx ] + sigma[0]*D_nabla_primal[0])/(1.f + sigma[0]*epsilon);
+		dual_p1[ idx ] = (dual_p1[ idx ] + sigma[1]*D_nabla_primal[1])/(1.f + sigma[1]*epsilon);
+
+		// constrain ||p|| <= 1.0
+		float p_norm = sqrt( dual_p0[ idx ]* dual_p0[ idx ] + dual_p1[ idx ]*dual_p1[ idx ]);
+		float reprojection = max( 1.0f, p_norm);
+
+		dual_p0[ idx ] /= reprojection;
+		dual_p1[ idx ] /= reprojection;
+	}
 }

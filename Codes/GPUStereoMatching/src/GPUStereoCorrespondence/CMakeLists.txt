@@ -5,7 +5,8 @@ add_library ( ${PROJECT_NAME}
 			   GrayscaleFilter.hpp GrayscaleFilter.cpp
 			   BFCostAggregator.hpp BFCostAggregator.cpp
 			   CostVolume.hpp CostVolume.cpp
-			   DisparityOptimizer.hpp DisparityOptimizer.cpp)
+			   DisparityOptimizer.hpp DisparityOptimizer.cpp
+			   COCV.hpp COCV.cpp)
 
 target_link_libraries ( 
 	${PROJECT_NAME}

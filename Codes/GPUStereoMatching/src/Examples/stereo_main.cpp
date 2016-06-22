@@ -144,7 +144,7 @@ int main(int argc, char* argv)
     clutils::CLEnvInfo<1> infoGradF_L (0, 0, 0, v3, 0);
 	GradientFilter GradF_L( clEnv, infoGradF_L);
 	GradF_L.get( GradientFilter::Memory::D_IN) = I1.get(GrayscaleFilter::Memory::D_OUT);
-	GradF_L.get( GradientFilter::Memory::D_OUT) = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize);
+	GradF_L.get( GradientFilter::Memory::D_X_OUT) = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize);
 	GradF_L.init( width, height, GradientFilter::Staging::O); 
 
 	std::vector<unsigned int> v4;
@@ -152,7 +152,7 @@ int main(int argc, char* argv)
     clutils::CLEnvInfo<1> infoGradF_R (0, 0, 0, v4, 0);
 	GradientFilter GradF_R( clEnv, infoGradF_R);
 	GradF_R.get( GradientFilter::Memory::D_IN) = I2.get(GrayscaleFilter::Memory::D_OUT);
-	GradF_R.get( GradientFilter::Memory::D_OUT) = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize);
+	GradF_R.get( GradientFilter::Memory::D_X_OUT) = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize);
 	GradF_R.init( width, height, GradientFilter::Staging::O); 
 
 	// Configure CostVolume (CV)
@@ -161,10 +161,10 @@ int main(int argc, char* argv)
 	clutils::CLEnvInfo<1> infoCV( 0, 0, 0, v5, 0);
 	CostVolume CV( clEnv, infoCV);
 	CV.get ( CostVolume::Memory::D_IN_L ) = I1.get(GrayscaleFilter::Memory::D_OUT);
-	CV.get ( CostVolume::Memory::D_IN_LGRAD ) = GradF_L.get( GradientFilter::Memory::D_OUT);
+	CV.get ( CostVolume::Memory::D_IN_LGRAD ) = GradF_L.get( GradientFilter::Memory::D_X_OUT);
 	CV.get ( CostVolume::Memory::D_IN_R ) = I2.get(GrayscaleFilter::Memory::D_OUT);
-	CV.get ( CostVolume::Memory::D_IN_RGRAD ) = GradF_R.get( GradientFilter::Memory::D_OUT);
-	CV.init( width, height, d_min, d_max, color_th, grad_th, alpha, CostVolume::Staging::O);
+	CV.get ( CostVolume::Memory::D_IN_RGRAD ) = GradF_R.get( GradientFilter::Memory::D_X_OUT);
+	CV.init( width, height, d_min, d_max, 1, color_th, grad_th, alpha, 2, CostVolume::Staging::O);
 
 	// Configure guided filter (GF)
 /*	std::vector<unsigned int> v6;

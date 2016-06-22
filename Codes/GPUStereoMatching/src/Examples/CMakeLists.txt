@@ -12,6 +12,10 @@ add_executable(GPU_StereoMatcher_Example stereo_main.cpp)
 
 target_link_libraries( GPU_StereoMatcher_Example Common Filters ThirdParty GPUStereoCorrespondence ${OpenCV_LIBRARIES} ${OpenCL_LIBRARIES} )
 
+add_executable( GPU_COCV_Example COCV_test_main.cpp)
+target_link_libraries(GPU_COCV_Example Common Filters ThirdParty GPUStereoCorrespondence ${OpenCV_LIBRARIES} ${OpenCL_LIBRARIES} )
+
+
 add_executable( GPU_GuidedFilter_Example guided_filter_main.cpp)
 
 target_link_libraries( GPU_GuidedFilter_Example Common Filters ${OpenCV_LIBRARIES} ${OpenCL_LIBRARIES} )

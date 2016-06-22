@@ -79,7 +79,7 @@ public:
     cl::Memory& get (CostVolume::Memory mem);
         
 	/*! \brief Configures kernel execution parameters. */
-    void init (int _width, int _height, int _d_min, int _d_max, int _cth, int _gth, double _alpha, Staging _staging = Staging::IO);
+    void init (int _width, int _height, int _d_min, int _d_max, int _radius, int _cth, int _gth, double _alpha, int type, Staging _staging = Staging::IO);
 
     /*! \brief Performs a data transfer to a device buffer. */
     void write (CostVolume::Memory mem = CostVolume::Memory::D_IN_L, void *ptr = nullptr, bool block = CL_FALSE, 
@@ -115,6 +115,7 @@ private:
 	/* Parameters for cost construction */
 	double color_th, grad_th, alpha;
 	unsigned int d_min, d_max;
+	unsigned int radius;
 };
 
 #endif // COSTVOLUME_HPP

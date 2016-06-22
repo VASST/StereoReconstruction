@@ -1283,7 +1283,7 @@ void WTA_Optimizer(global float *in, global float *out, int d_min,int n)
  *             So this array is 4*width*height long. 
  */
 kernel
-void DiffuseTensor(global float *img_grad_x, global float *img_grad_y, global float *tensor, float alpha, float beta, int max_d, int radius)
+void DiffuseTensor(global float *img, global float *tensor, float alpha, float beta, int min_d, int max_d, int radius)
 {
 	// Workspace dimensions
     const int gXdim = get_global_size (0);
@@ -1293,12 +1293,16 @@ void DiffuseTensor(global float *img_grad_x, global float *img_grad_y, global fl
     const int gX = get_global_id (0);
     const int gY = get_global_id (1);
 
-
-	if( radius < gX && gX < gXdim+radius-1 && gY < gYdim-radius-1 && max_d+radius < gY)
+	if( radius < gY && gY < gYdim-radius && gX < gXdim+min_d-radius && max_d+radius < gX)
 	{
 		float nabla_img[2];
-		nabla_img[0] = img_grad_x[ gY*gXdim + gX ];
-		nabla_img[1] = img_grad_y[ gY*gXdim + gX ];
+		float current_data = img[ gY*gXdim + gX ];
+		float x_forward_data = img[ gY*gXdim + gX + 1 ];
+		float y_forward_data = img[ (gY+1)*gXdim + gX ];
+
+		// Take forward differences. ( Ref. Werlberger et. al., BMCV 2009 )
+		nabla_img[0] = x_forward_data - current_data;
+		nabla_img[1] = y_forward_data - current_data;
 
 		float norm_nabla_img = sqrt( nabla_img[0]*nabla_img[0] + nabla_img[1]*nabla_img[1] );
 
@@ -1338,7 +1342,7 @@ void DiffuseTensor(global float *img_grad_x, global float *img_grad_y, global fl
 kernel 
 void DiffusionPreconditioning(global float *diffusion_tensor, global float *dual_step_sigma0, global float *dual_step_sigma1, 
 										global float *primal_step_tau, 
-											int max_d, int radius)
+											int min_d, int max_d, int radius)
 {
 	// Workspace dimensions
     const int gXdim = get_global_size (0);
@@ -1348,7 +1352,7 @@ void DiffusionPreconditioning(global float *diffusion_tensor, global float *dual
     const int gX = get_global_id (0);
     const int gY = get_global_id (1);
 
-	if( gX < gXdim-radius && radius < gX && gY < gYdim-radius && max_d+radius < gY )
+	if( gY < gYdim-radius && radius < gY && gX < gXdim+min_d-radius && max_d+radius < gX )
 	{
 		float D[4], Dx[4], Dy[4];
 

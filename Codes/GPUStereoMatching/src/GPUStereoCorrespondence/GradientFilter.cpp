@@ -42,7 +42,7 @@ GradientFilter::GradientFilter (clutils::CLEnv &_env, clutils::CLEnvInfo<1> _inf
 																env( _env ),  info (_info), 
 																context (env.getContext (info.pIdx)), 
 																queue0 (env.getQueue (info.ctxIdx, info.qIdx[0])), 
-																del_x(env.getProgram (info.pgIdx), "x_gradient"), 
+																kernel(env.getProgram (info.pgIdx), "gradient"), 
 																waitList_delx (1)
 {
 }
@@ -64,12 +64,16 @@ cl::Memory& GradientFilter::get (GradientFilter::Memory mem)
    {
 		case GradientFilter::Memory::H_IN:
              return hBufferIn;
-        case GradientFilter::Memory::H_OUT:
-             return hBufferOut;
+        case GradientFilter::Memory::H_X_OUT:
+             return hXBufferOut;
+		case GradientFilter::Memory::H_Y_OUT:
+			return hYBufferOut;
         case GradientFilter::Memory::D_IN:
              return dBufferIn;
-        case GradientFilter::Memory::D_OUT:
-             return dBufferOut;
+        case GradientFilter::Memory::D_X_OUT:
+             return dXBufferOut;
+		case GradientFilter::Memory::D_Y_OUT:
+             return dYBufferOut;
    }
 }
 
@@ -124,9 +128,12 @@ void* GradientFilter::read ( GradientFilter::Memory mem, bool block,
      {
          switch (mem)
          {
-		 case GradientFilter::Memory::H_OUT:
-				 queue0.enqueueReadBuffer (dBufferOut, block, 0, bufferSize, hPtrOut, events, event);
-                  return hPtrOut;
+		 case GradientFilter::Memory::H_X_OUT:
+				 queue0.enqueueReadBuffer (dXBufferOut, block, 0, bufferSize, hXPtrOut, events, event);
+                  return hXPtrOut;
+		 case GradientFilter::Memory::H_Y_OUT:
+				 queue0.enqueueReadBuffer (dYBufferOut, block, 0, bufferSize, hYPtrOut, events, event);
+                  return hYPtrOut;
              default:
                   return nullptr;
 		 }
@@ -166,7 +173,8 @@ void GradientFilter::init(int _width, int _height, Staging _staging)
     {
         case Staging::NONE:
              hPtrIn = nullptr;
-             hPtrOut = nullptr;
+             hXPtrOut = nullptr;
+			 hYPtrOut = nullptr;
              break;
 
         case Staging::IO:
@@ -183,17 +191,24 @@ void GradientFilter::init(int _width, int _height, Staging _staging)
              if (!io)
              {
                  queue0.finish ();
-                 hPtrOut = nullptr;
+                 hXPtrOut = nullptr;
+				 hYPtrOut = nullptr;
                  break;
              }
 
         case Staging::O:
-            if (hBufferOut () == nullptr)
-                hBufferOut = cl::Buffer (context, CL_MEM_ALLOC_HOST_PTR, bufferSize);
+            if (hXBufferOut () == nullptr)
+                hXBufferOut = cl::Buffer (context, CL_MEM_ALLOC_HOST_PTR, bufferSize);
+			if (hYBufferOut () == nullptr)
+                hYBufferOut = cl::Buffer (context, CL_MEM_ALLOC_HOST_PTR, bufferSize);
 
-             hPtrOut = (cl_float *) queue0.enqueueMapBuffer (
-					         hBufferOut, CL_FALSE, CL_MAP_READ, 0, bufferSize);
-             queue0.enqueueUnmapMemObject (hBufferOut, hPtrOut);
+			hXPtrOut = (cl_float *) queue0.enqueueMapBuffer (
+					         hXBufferOut, CL_FALSE, CL_MAP_READ, 0, bufferSize);
+			hYPtrOut = (cl_float *) queue0.enqueueMapBuffer (
+					         hYBufferOut, CL_FALSE, CL_MAP_READ, 0, bufferSize);
+
+             queue0.enqueueUnmapMemObject (hXBufferOut, hXPtrOut);
+			 queue0.enqueueUnmapMemObject (hYBufferOut, hYPtrOut);
              queue0.finish ();
 
              if (!io) hPtrIn = nullptr;
@@ -203,11 +218,14 @@ void GradientFilter::init(int _width, int _height, Staging _staging)
 	// Create device buffers
     if (dBufferIn () == nullptr)
         dBufferIn = cl::Buffer (context, CL_MEM_READ_ONLY, bufferSize);
-    if (dBufferOut () == nullptr)
-        dBufferOut = cl::Buffer (context, CL_MEM_WRITE_ONLY, bufferSize);
+    if (dXBufferOut () == nullptr)
+        dXBufferOut = cl::Buffer (context, CL_MEM_WRITE_ONLY, bufferSize);
+	if (dYBufferOut () == nullptr)
+        dYBufferOut = cl::Buffer (context, CL_MEM_WRITE_ONLY, bufferSize);
 
-	del_x.setArg( 0, dBufferIn );
-	del_x.setArg( 1, dBufferOut );
+	kernel.setArg( 0, dBufferIn );
+	kernel.setArg( 1, dXBufferOut );
+	kernel.setArg( 2, dYBufferOut );
 
 
 	// Set workspaces
@@ -224,7 +242,7 @@ void GradientFilter::run (const std::vector<cl::Event> *events, cl::Event *event
 {
 	try
 	{
-		cl_int err = queue0.enqueueNDRangeKernel (del_x, cl::NullRange, global, cl::NullRange);
+		cl_int err = queue0.enqueueNDRangeKernel (kernel, cl::NullRange, global, cl::NullRange);
 		waitList_delx[0] = delx_event;
 	}
 	catch (const char *error)

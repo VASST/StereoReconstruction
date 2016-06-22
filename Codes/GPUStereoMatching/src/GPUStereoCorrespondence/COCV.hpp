@@ -47,11 +47,9 @@ class COCV
     {
           H_COST_IN,   /*!< Input staging buffer for cost volume. */
 		  H_IMG_IN,  /*!< Input staging buffer for input grayscale image. */
-		  H_GRAD_IN, /*!< Input staging buffer for input gradient image. */
           H_OUT,  /*!< Output staging buffer. */
           D_COST_IN,   /*!< Input buffer for cost volume. */
 		  D_IMG_IN, /*!< Input buffer for input grayscale image. */
-		  D_GRAD_IN, /*!< Input buffer for gradient image. */
           D_OUT,  /*!< Output buffer. */
     };
 
@@ -78,7 +76,7 @@ class COCV
     cl::Memory& get (COCV::Memory mem);
         
 	/*! \brief Configures kernel execution parameters. */
-    void init (int _width, int _height, int _d_min, int _d_max, int _radius, float _eps, Staging _staging = Staging::IO);
+    void init (int _width, int _height, int _d_min, int _d_max, int _radius, float _alpha, float _beta, float _eps, Staging _staging = Staging::IO);
 
     /*! \brief Performs a data transfer to a device buffer. */
     void write (COCV::Memory mem = COCV::Memory::D_COST_IN, void *ptr = nullptr, bool block = CL_FALSE, 
@@ -91,7 +89,7 @@ class COCV
 	/*! \brief Executes the necessary kernels. */
     void run (const std::vector<cl::Event> *events = nullptr, cl::Event *event = nullptr);
 
-	cl_float *hCostPtrIn, *hImgPtrIn, *hGradPtrIn;  /*!< Mapping of the input staging buffer. */
+	cl_float *hCostPtrIn, *hImgPtrIn, *hGradXPtrIn, *hGradYPtrIn;  /*!< Mapping of the input staging buffer. */
     cl_float *hPtrOut;  /*!< Mapping of the output staging buffer. */
 
 private:
@@ -106,9 +104,10 @@ private:
     unsigned int width, height, bufferSize, costBufferSize;
 	unsigned int numLayers, d_min, d_max;
 	int radius;
-	float eps;
-    cl::Buffer hCostBufferIn, hImgBufferIn, hGradBufferIn, hBufferOut;
-    cl::Buffer dCostBufferIn, dImgBufferIn, dGradBufferIn, dBufferOut;
+	float eps, alpha, beta;
+    cl::Buffer hCostBufferIn, hImgBufferIn, hBufferOut;
+    cl::Buffer dCostBufferIn, dImgBufferIn, dBufferOut;
+	cl::Buffer dTensorBuffer, dual_step_sigma0, dual_step_sigma1, primal_step_tau;
     cl::Event event;
     std::vector<cl::Event> waitList;
 };

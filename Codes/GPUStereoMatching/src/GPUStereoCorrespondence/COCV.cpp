@@ -71,16 +71,12 @@ cl::Memory& COCV::get (COCV::Memory mem)
              return hCostBufferIn;
 		case COCV::Memory::H_IMG_IN:
              return hImgBufferIn;
-		case COCV::Memory::H_GRAD_IN:
-			return hGradBufferIn;
         case COCV::Memory::H_OUT:
              return hBufferOut;
         case COCV::Memory::D_COST_IN:
              return dCostBufferIn;
 		case COCV::Memory::D_IMG_IN:
              return dImgBufferIn;
-		case COCV::Memory::D_GRAD_IN:
-			return dGradBufferIn;
 		case COCV::Memory::D_OUT:
 			return dBufferOut;
    }
@@ -118,13 +114,6 @@ void COCV::write( COCV::Memory mem,
 					 std::copy ((cl_float *) ptr, (cl_float *) ptr + width * height, hImgPtrIn);
                  queue.enqueueWriteBuffer (dImgBufferIn, block, 0, bufferSize, hImgPtrIn, events, event);
                  break;
-
-			case COCV::Memory::D_GRAD_IN:
-				if (ptr != nullptr)
-					 std::copy ((cl_float *) ptr, (cl_float *) ptr + width * height, hGradPtrIn);
-                 queue.enqueueWriteBuffer (dGradBufferIn, block, 0, bufferSize, hGradPtrIn, events, event);
-                 break;
-    
 			 default:
                 break;
 		 }
@@ -166,10 +155,13 @@ void* COCV::read ( COCV::Memory mem, bool block,
  *  \param[in] _d_levels disparity levels 
  *  \param[in] _staging flag to indicate whether or not to instantiate the staging buffers.
  */
-void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, float _eps, Staging _staging)
+void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, float _alpha, float _beta, 
+								float _eps, Staging _staging)
 {
 	width = _width; height = _height; d_min = _d_min; d_max = _d_max; 
 	numLayers = d_max - d_min +1;
+	alpha  = _alpha; beta = _beta; eps = _eps;
+	radius = _radius;
 	bufferSize = width * height * sizeof (cl_float);
 	costBufferSize = numLayers * width * height * sizeof(cl_float);
 	staging = _staging;
@@ -178,9 +170,6 @@ void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, fl
     {
        if ((width == 0) || (height == 0))
            throw "The image cannot have zeroed dimensions";
-
-	   if ((width * height) % 4 != 0)
-           throw "The number of elements in the array has to be a multiple of 4";
 	}
     catch (const char *error)
     {
@@ -195,7 +184,8 @@ void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, fl
         case Staging::NONE:
              hCostPtrIn = nullptr;
 			 hImgPtrIn = nullptr;
-			 hGradPtrIn = nullptr;
+			 hGradXPtrIn = nullptr;
+			 hGradYPtrIn = nullptr;
              hPtrOut = nullptr;
              break;
 
@@ -207,19 +197,14 @@ void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, fl
                  hCostBufferIn = cl::Buffer (context, CL_MEM_ALLOC_HOST_PTR, costBufferSize);
 			 if (hImgBufferIn () == nullptr)
                  hImgBufferIn = cl::Buffer (context, CL_MEM_ALLOC_HOST_PTR, bufferSize);
-			 if (hGradBufferIn () == nullptr )
-                 hGradBufferIn = cl::Buffer (context, CL_MEM_ALLOC_HOST_PTR, bufferSize);
 
              hCostPtrIn = (cl_float *) queue.enqueueMapBuffer (
 				         hCostBufferIn, CL_FALSE, CL_MAP_WRITE, 0, costBufferSize);
 			 hImgPtrIn = (cl_float *) queue.enqueueMapBuffer (
 				         hImgBufferIn, CL_FALSE, CL_MAP_WRITE, 0, bufferSize);
-			 hGradPtrIn = (cl_float *) queue.enqueueMapBuffer (
-						 hGradBufferIn, CL_FALSE, CL_MAP_WRITE, 0, bufferSize);
 
              queue.enqueueUnmapMemObject (hCostBufferIn, hCostPtrIn);
 			 queue.enqueueUnmapMemObject (hImgBufferIn, hImgPtrIn);
-			 queue.enqueueUnmapMemObject( hGradBufferIn, hGradPtrIn );
 
              if (!io)
              {
@@ -240,7 +225,7 @@ void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, fl
              if (!io)
 			 { 
 				 hCostPtrIn = nullptr; hImgPtrIn = nullptr;
-				 hGradPtrIn = nullptr; 
+				 hGradXPtrIn = nullptr; hGradYPtrIn = nullptr;
 			 }
              break;
 	}
@@ -250,29 +235,36 @@ void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, fl
         dCostBufferIn = cl::Buffer (context, CL_MEM_READ_ONLY, costBufferSize);
 	if (dImgBufferIn () == nullptr)
         dImgBufferIn = cl::Buffer (context, CL_MEM_READ_ONLY, bufferSize);
-	if( dGradBufferIn() == nullptr)
-		dGradBufferIn = cl::Buffer( context, CL_MEM_READ_ONLY, bufferSize);
 
 	// Out buffer is of size width *height
     if (dBufferOut () == nullptr)
         dBufferOut = cl::Buffer (context, CL_MEM_READ_WRITE, bufferSize);
 
-	/*cost_calc.setArg( 0, dLBufferIn );
-	cost_calc.setArg( 1, dRBufferIn );
-	cost_calc.setArg( 2, dLGRADBufferIn);
-	cost_calc.setArg( 3, dRGRADBufferIn);
-	cost_calc.setArg( 4, dBufferOut );
-	int patch_r = 1;
-	int vx = 2*(patch_r-1)+1;
-	cost_calc.setArg( 5, static_cast<int>(patch_r));
-	cost_calc.setArg( 6, (int)d_min);
-	cost_calc.setArg( 7, (int)d_max);
-	cost_calc.setArg( 8, static_cast<float>(color_th/255));
-	cost_calc.setArg( 9, static_cast<float>(grad_th/255));
-	cost_calc.setArg( 10, static_cast<float>(alpha));
-	cost_calc.setArg( 11, 2);
-	cost_calc.setArg( 12, 1); // REF image 1-left, 2-right
-	cost_calc.setArg( 13, static_cast<float>(1000)); */
+	dTensorBuffer  = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize*4 );
+	dual_step_sigma0 = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
+	dual_step_sigma1 = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
+	primal_step_tau = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
+
+
+	// Setup DiffusionTensor kernel.
+	dt_kernel.setArg( 0, dImgBufferIn);
+	dt_kernel.setArg( 1, dTensorBuffer );
+	dt_kernel.setArg( 2, alpha );
+	dt_kernel.setArg( 3, beta );
+	dt_kernel.setArg( 4, d_min );
+	dt_kernel.setArg( 5, d_max );
+	dt_kernel.setArg( 6, radius );
+
+	// Setup DiffusionPreconditioning kernel.
+	precond_kernel.setArg( 0, dTensorBuffer );
+	precond_kernel.setArg( 1, dual_step_sigma0 );
+	precond_kernel.setArg( 2, dual_step_sigma1 );
+	precond_kernel.setArg( 3, primal_step_tau );
+	precond_kernel.setArg( 4, d_min );
+	precond_kernel.setArg( 5, d_max );
+	precond_kernel.setArg( 6, radius);
+
+	// Setup 
 
 	// Set workspaces to three dimensions, d being the third dimension
     global = cl::NDRange (width, height);
@@ -289,6 +281,8 @@ void COCV::run (const std::vector<cl::Event> *events, cl::Event *event)
 	try
 	{
 		cl_int err = queue.enqueueNDRangeKernel (dt_kernel, cl::NullRange, global, cl::NullRange);
+		
+		err = queue.enqueueNDRangeKernel ( precond_kernel, cl::NullRange, global, cl::NullRange );
 	}
 	catch (const char *error)
     {

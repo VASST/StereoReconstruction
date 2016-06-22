@@ -46,9 +46,11 @@ public:
      enum class Memory : uint8_t
     {
           H_IN,   /*!< Input staging buffer. */
-          H_OUT,  /*!< Output staging buffer. */
+          H_X_OUT,  /*!< Output staging buffer for X derivatives. */
+		  H_Y_OUT,  /*!< Output staging buffer for X derivatives. */
           D_IN,   /*!< Input buffer. */
-          D_OUT,  /*!< Output buffer. */
+          D_X_OUT,  /*!< Output buffer. */
+		  D_Y_OUT,  /*!< Output buffer. */
     };
 
 	/*! \brief Enumerates staging buffer configurations.
@@ -81,26 +83,26 @@ public:
                     const std::vector<cl::Event> *events = nullptr, cl::Event *event = nullptr);
         
 	/*! \brief Performs a data transfer to a staging buffer. */
-    void* read (GradientFilter::Memory mem = GradientFilter::Memory::H_OUT, bool block = CL_TRUE, 
+    void* read (GradientFilter::Memory mem = GradientFilter::Memory::H_X_OUT, bool block = CL_TRUE, 
                     const std::vector<cl::Event> *events = nullptr, cl::Event *event = nullptr);
         
 	/*! \brief Executes the necessary kernels. */
     void run (const std::vector<cl::Event> *events = nullptr, cl::Event *event = nullptr);
 
 	cl_float *hPtrIn;  /*!< Mapping of the input staging buffer. */
-    cl_float *hPtrOut;  /*!< Mapping of the output staging buffer. */
+    cl_float *hXPtrOut, *hYPtrOut;  /*!< Mapping of the output staging buffer. */
 
 private:
 	clutils::CLEnv &env;
     clutils::CLEnvInfo<1> info;
     cl::Context context;
     cl::CommandQueue queue0;
-    cl::Kernel del_x;
+    cl::Kernel kernel;
     cl::NDRange global;
     Staging staging;
     unsigned int width, height, bufferSize;
-    cl::Buffer hBufferIn, hBufferOut;
-    cl::Buffer dBufferIn, dBufferOut;
+    cl::Buffer hBufferIn, hXBufferOut, hYBufferOut;
+    cl::Buffer dBufferIn, dXBufferOut, dYBufferOut;
     cl::Event delx_event;
     std::vector<cl::Event> waitList_delx;
 };

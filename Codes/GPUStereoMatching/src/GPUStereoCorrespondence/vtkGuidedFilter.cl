@@ -1274,6 +1274,53 @@ void WTA_Optimizer(global float *in, global float *out, int d_min,int n)
 		out[gY*gXdim + gX] = 0.f;
 }
 
+/*! \brief WTA kernel for Chang et. al, MICCAI 2013
+ *
+ */
+kernel
+void WTA_Kernel( global float *in, global float *min_cost, global float *max_cost, global float *primal_disp_u, 
+					int min_d, int max_d, int radius, float MAX_COST)
+{
+	// Workspace dimensions
+    const int gXdim = get_global_size (0);
+	const int gYdim = get_global_size (1);
+
+    // Workspace indices
+    const int gX = get_global_id (0);
+    const int gY = get_global_id (1);
+
+	const int num_layers = max_d - min_d +1;
+
+	if( gY < gYdim-radius && radius < gY && gX < gXdim-radius && max_d+radius < gX )
+	{
+		float cost_min = MAX_COST;
+		float cost_max = -1.f;
+		int min_cost_idx = 0;
+		
+		// WTA
+		for(int i=0; i<num_layers; i++)
+		{
+			float data = in[ i*gXdim*gYdim + gY*gXdim + gX ];
+			if( cost_min > data  )
+			{
+				cost_min = data;
+				min_cost_idx = i;
+			}
+			if( cost_max < data )
+			{
+				cost_max = data;
+			}
+		}
+
+		int idx = gY*gXdim + gX;
+
+		primal_disp_u[ idx ] = ((float)min_cost_idx)/((float)num_layers-1);
+
+		min_cost[ idx ] = cost_min;
+		max_cost[ idx ] = cost_max;
+	}
+}
+
 // CL kernels for Chang et. al. ,MICCAI 2013
 // Diffusion tensor D = exp( -alpha*(nabla(I))^beta)
 /*! \brief Compute the Diffusion tensor for a given image
@@ -1314,6 +1361,7 @@ void DiffuseTensor(global float *img, global float *tensor, float alpha, float b
 
 			n[0] = nabla_img[0]/norm_nabla_img;
 			n[1] = nabla_img[1]/norm_nabla_img;
+			// Perpendicular vector to the gradient vector 
 			p_n[0] = -n[1];
 			p_n[1] = n[0];
 
@@ -1374,31 +1422,32 @@ void DiffusionPreconditioning(global float *diffusion_tensor, global float *dual
 		Dy[3] = diffusion_tensor[ idx - gXdim +3 ];
 
 		/* D*nabla sum */
-		if( gX < gXdim-radius-1)
+		if( gX < gXdim+min_d-radius-1)
 			dual_step_sigma0[  idx ] = 2*fabs(D[0]) + 2*fabs(D[2]);
 
 		if( gY < gYdim -radius -1)
 			dual_step_sigma1[ idx ]  = 2*fabs(D[1]) + 2*fabs(D[3]);
 
-		float val = dual_step_sigma0[ idx ]; 
+		float val0 = dual_step_sigma0[ idx ]; 
+		float val1 = dual_step_sigma1[ idx ];
 
-		dual_step_sigma0[ idx ] = select( 1.f/val , 0.f, val == 0.f); 
-		dual_step_sigma1[ idx ] = select( 1.f/val, 0.f, val == 0.f); 
+		dual_step_sigma0[ idx ] = select( 1.f/val0 , 0.f, val0 == 0.f); 
+		dual_step_sigma1[ idx ] = select( 1.f/val1, 0.f, val1 == 0.f); 
 
 		/* D*nabla sum */
 		primal_step_tau[ idx ] += fabs(D[0]) + fabs(D[2]);
 		primal_step_tau[ idx ] += fabs(D[1]) + fabs(D[3]);
 
-		if( gX > radius && gY > max_d + radius)
+		if( gY > radius && gX > max_d + radius)
 			primal_step_tau[ idx ] += fabs(Dx[0]) + fabs(Dx[3]);
 
-		if( gX == radius && gY < max_d+radius)
+		if( gY == radius && gX < max_d+radius)
 			primal_step_tau[ idx ] += fabs(Dy[3]);
 
-		if( gY == max_d + radius && gX > radius)
+		if( gX == max_d + radius && gY > radius)
 			primal_step_tau[ idx ] += fabs(Dx[0]);
 		
-		val = primal_step_tau[ idx ];
+		float val = primal_step_tau[ idx ];
 		primal_step_tau[ idx ] =select(1.f/val , 0.f,val == 0.f); 
 	}
 
@@ -1420,7 +1469,7 @@ void HuberL2DualUpdate(global float *diffusion_tensor, global float *head_primal
     const int gX = get_global_id (0);
     const int gY = get_global_id (1);
 
-	if( gX < gXdim-radius && radius <= gX && gY < gYdim-radius && max_d+radius <= gY )
+	if( gY < gYdim-radius && radius <= gY && gX < gXdim-radius && max_d+radius <= gX )
 	{
 		float D_nabla_primal[2], sigma[2], D[4];
 
@@ -1431,6 +1480,7 @@ void HuberL2DualUpdate(global float *diffusion_tensor, global float *head_primal
 		D[2] = diffusion_tensor[ idx+2 ];
 		D[3] = diffusion_tensor[ idx+3 ];
 
+		// D*nabla(primal) : primal - disparity function. 
 		if( gX < gXdim-radius-1 )
 			D_nabla_primal[0] = -(D[0]+D[2])*head_primal[ idx ] +
 									D[0]*head_primal[ idx + 1 ] + D[2]*head_primal[ idx + gXdim]; 
@@ -1460,3 +1510,133 @@ void HuberL2DualUpdate(global float *diffusion_tensor, global float *head_primal
 		dual_p1[ idx ] /= reprojection;
 	}
 }
+
+/*! \brief Primal Updating kernel
+ *
+ */
+kernel
+void HuberL2PrimalUpdate(global float *diffusion_tensor, global float *old_primal, global float *primal_step, 
+										global float *dual_p0, global float *dual_p1, global float *aux, 
+										 global float *new_primal, 
+												float epsilon, int max_d, int radius, float theta)
+{
+	// Workspace dimensions
+    const int gXdim = get_global_size (0);
+	const int gYdim = get_global_size (1);
+
+    // Workspace indices
+    const int gX = get_global_id (0);
+    const int gY = get_global_id (1);
+
+	if( gX < gXdim-radius && radius < gX && gY < gYdim-radius && max_d + radius < gY )
+	{
+		float div_D_dual = 0.0, D[4], Dx[4], Dy[4];
+
+		const int idx = gY*gXdim + gX;
+
+		D[0] = diffusion_tensor[ idx ];
+		D[1] = diffusion_tensor[ idx+1 ];
+		D[2] = diffusion_tensor[ idx+2 ];
+		D[3] = diffusion_tensor[ idx+3 ]; 
+
+		Dx[0] = diffusion_tensor[ idx - 4 ];
+		Dx[1] = diffusion_tensor[ idx - 3 ];
+		Dx[2] = diffusion_tensor[ idx - 2 ];
+		Dx[3] = diffusion_tensor[ idx - 1 ];
+
+		Dy[0] = diffusion_tensor[ idx - gXdim ];
+		Dy[1] = diffusion_tensor[ idx - gXdim +1 ];
+		Dy[2] = diffusion_tensor[ idx - gXdim +2 ];
+		Dy[3] = diffusion_tensor[ idx - gXdim +3 ];
+
+		if( gX < gXdim-radius )
+			div_D_dual += (D[0]+D[2])*dual_p0[ idx ];
+
+		if( gY < gYdim-radius )
+			div_D_dual += (D[1]+D[3])*dual_p1[ idx ];
+
+		if( gX > max_d + radius )
+			div_D_dual += Dx[0]*dual_p0[ idx -1 ];
+
+		if( gY > radius )
+			div_D_dual += Dy[3]*dual_p1[ idx - gXdim ];
+
+		float tau = primal_step[ idx ];
+		
+		new_primal[ idx ] = ( old_primal[ idx ] + tau*((1.f/theta)*aux[ idx ]  - div_D_dual ))/( 1.f + tau*(1.f/theta));
+	}
+}
+
+/*! \brief Huber-L2 Head Primal updating kernel
+ * 
+ */ 
+kernel 
+void HuberL2HeadPrimalUpdate(global float *head_primal, global float *primal,  global float *old_primal, 
+									int max_d, int radius, float theta)
+{
+	// Workspace dimensions
+    const int gXdim = get_global_size (0);
+	const int gYdim = get_global_size (1);
+
+    // Workspace indices
+    const int gX = get_global_id (0);
+    const int gY = get_global_id (1);
+
+	if( gX < gXdim-radius && radius < gX && gY < gYdim-radius && max_d + radius < gY )
+	{
+		const int idx = gY*gXdim + gX;
+
+		head_primal[ idx ] = primal[ idx ] + theta*primal[ idx ] - old_primal[ idx ];
+	}
+
+}
+
+/*! \brief Solve for auxiliary variable. Brute-force
+ * 
+ */
+kernel 
+void CostVolumePixelWiseSearch(global float *aux, global float *max_disp_cost, global float *min_disp_cost,  global float *primal,
+									global float *cost_volume, 
+									int min_d, int max_d, int radius, float theta, float lambda)
+{
+
+	// Workspace dimensions
+    const int gXdim = get_global_size (0);
+	const int gYdim = get_global_size (1);
+
+    // Workspace indices
+    const int gX = get_global_id (0);
+    const int gY = get_global_id (1);
+
+	const int idx = gY*gXdim + gX;
+
+	const int d_layers = max_d - min_d + 1;
+
+	if( gX < gXdim-radius && radius < gX && gY < gYdim-radius && max_d + radius < gY )
+	{
+		float max_min_cost_diff = max_disp_cost[ idx ] - min_disp_cost[ idx ];
+
+		int lower_bound = round((primal[ idx ] - sqrt(2.0*theta*lambda*max_min_cost_diff))*(d_layers-1));
+		int upper_bound = round((primal[ idx ] + sqrt(2.0*theta*lambda*max_min_cost_diff))*(d_layers-1));
+
+		lower_bound = select( lower_bound , 0 ,lower_bound < 0);
+		upper_bound = select( upper_bound , d_layers-1, upper_bound > d_layers -1 );
+
+		float Eaux_min = 100.f, Eaux;
+
+		for( int z = lower_bound; z <= upper_bound; z++)
+		{
+			float aux_normalized = z/(float)(d_layers-1);
+
+			Eaux = 0.5f*(1.f/theta)*pow(( primal[ idx ] - aux_normalized ), 2.0f) - lambda*cost_volume[ z*gXdim*gYdim + idx ];
+
+			if( Eaux < Eaux_min )
+			{
+				Eaux_min = Eaux;
+				aux[ idx ] = aux_normalized;
+			}
+		} 
+	}
+
+}
+								

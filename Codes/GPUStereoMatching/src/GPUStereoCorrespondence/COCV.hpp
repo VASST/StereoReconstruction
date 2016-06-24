@@ -76,7 +76,7 @@ class COCV
     cl::Memory& get (COCV::Memory mem);
         
 	/*! \brief Configures kernel execution parameters. */
-    void init (int _width, int _height, int _d_min, int _d_max, int _radius, float _alpha, float _beta, float _theta, float _eps, Staging _staging = Staging::IO);
+    void init (int _width, int _height, int _d_min, int _d_max, int _radius, float _alpha, float _beta, float _theta, float _lambda, float _eps, Staging _staging = Staging::IO);
 
     /*! \brief Performs a data transfer to a device buffer. */
     void write (COCV::Memory mem = COCV::Memory::D_COST_IN, void *ptr = nullptr, bool block = CL_FALSE, 
@@ -99,16 +99,17 @@ private:
     cl::Context context;
     cl::CommandQueue queue;
     cl::Kernel dt_kernel, precond_kernel, dual_update_kernel, primal_update_kernel, head_primal_update_kernel, pixel_wise_search_kernel;
+	cl::Kernel wta_kernel, error_kernel;
     cl::NDRange global, local;
     Staging staging;
     unsigned int width, height, bufferSize, costBufferSize;
 	unsigned int numLayers, d_min, d_max;
 	int radius;
-	float eps, alpha, beta, theta;
+	float eps, alpha, beta, theta, lambda;
     cl::Buffer hCostBufferIn, hImgBufferIn, hBufferOut;
     cl::Buffer dCostBufferIn, dImgBufferIn, dBufferOut;
-	cl::Buffer dTensorBuffer, dual_step_sigma0, dual_step_sigma1, primal_step_tau, head_primal, dual_p0, dual_p1;
-	cl::Buffer old_primal, new_primal, aux;
+	cl::Buffer dTensorBuffer, dual_step_sigma0, dual_step_sigma1, primal_step_tau, head_primal, dual_p0, dual_p1, max_disp_cost, min_disp_cost;
+	cl::Buffer old_primal, new_primal, aux, min_disp, error_img;
     cl::Event event;
     std::vector<cl::Event> waitList;
 };

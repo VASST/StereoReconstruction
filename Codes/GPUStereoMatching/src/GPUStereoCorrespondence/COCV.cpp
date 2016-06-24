@@ -44,12 +44,14 @@ COCV::COCV (clutils::CLEnv &_env, clutils::CLEnvInfo<1> _info):
 							env( _env ),  info (_info), 
 							context (env.getContext (info.pIdx)), 
 							queue (env.getQueue (info.ctxIdx, info.qIdx[0])), 
+							wta_kernel( env.getProgram(info.pgIdx), "WTA_Kernel" ), 
 							dt_kernel(env.getProgram (info.pgIdx), "DiffuseTensor"), 
 							precond_kernel(env.getProgram(info.pgIdx), "DiffusionPreconditioning"), 
 							dual_update_kernel(env.getProgram(info.pgIdx), "HuberL2DualUpdate"),
 							primal_update_kernel(env.getProgram(info.pgIdx), "HuberL2PrimalUpdate"),
 							head_primal_update_kernel(env.getProgram(info.pgIdx), "HuberL2HeadPrimalUpdate"),
 							pixel_wise_search_kernel(env.getProgram(info.pgIdx), "CostVolumePixelWiseSearch"),
+							error_kernel(env.getProgram(info.pgIdx), "HuberL1CVError"),
 							waitList (1), 
 							radius( 1.f ), eps( 0.01 )
 {
@@ -158,12 +160,12 @@ void* COCV::read ( COCV::Memory mem, bool block,
  *  \param[in] _d_levels disparity levels 
  *  \param[in] _staging flag to indicate whether or not to instantiate the staging buffers.
  */
-void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, float _alpha, float _beta, float _theta,
+void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, float _alpha, float _beta, float _theta, float _lambda,
 								float _eps, Staging _staging)
 {
 	width = _width; height = _height; d_min = _d_min; d_max = _d_max; 
 	numLayers = d_max - d_min +1;
-	alpha  = _alpha; beta = _beta; eps = _eps; theta = _theta;
+	alpha  = _alpha; beta = _beta; eps = _eps; theta = _theta; lambda = _lambda;
 	radius = _radius;
 	bufferSize = width * height * sizeof (cl_float);
 	costBufferSize = numLayers * width * height * sizeof(cl_float);
@@ -253,7 +255,21 @@ void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, fl
 	old_primal = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
 	new_primal = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
 	aux  = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
+	max_disp_cost = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
+	min_disp_cost = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
+	min_disp = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
+	error_img = cl::Buffer( context,  CL_MEM_READ_WRITE, bufferSize );
 
+
+	// Setup WTA kernel
+	wta_kernel.setArg( 0, dCostBufferIn );
+	wta_kernel.setArg( 1, min_disp_cost );
+	wta_kernel.setArg( 2, max_disp_cost );
+	wta_kernel.setArg( 3, min_disp );
+	wta_kernel.setArg( 4, d_min );
+	wta_kernel.setArg( 5, d_max );
+	wta_kernel.setArg( 6, radius );
+	wta_kernel.setArg( 7, 10000.f); // MAX_COST
 
 	// Setup DiffusionTensor kernel.
 	dt_kernel.setArg( 0, dImgBufferIn);
@@ -306,7 +322,27 @@ void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, fl
 	head_primal_update_kernel.setArg( 5, theta );
 
 	// Setup CostVolumePixelWiseSearch
+	pixel_wise_search_kernel.setArg( 0, aux );
+	pixel_wise_search_kernel.setArg( 1, max_disp_cost);
+	pixel_wise_search_kernel.setArg( 2, min_disp_cost );
+	pixel_wise_search_kernel.setArg( 3, new_primal );
+	pixel_wise_search_kernel.setArg( 4, dCostBufferIn );
+	pixel_wise_search_kernel.setArg( 5, d_min );
+	pixel_wise_search_kernel.setArg( 6, d_max );
+	pixel_wise_search_kernel.setArg( 7, radius );
+	pixel_wise_search_kernel.setArg( 8, theta );
+	pixel_wise_search_kernel.setArg( 9, lambda );
 
+	// Setup HuberL1CVError
+	error_kernel.setArg( 0, new_primal);
+	error_kernel.setArg( 1, dTensorBuffer);
+	error_kernel.setArg( 2, dCostBufferIn );
+	error_kernel.setArg( 3, error_img );
+	error_kernel.setArg( 4, d_min );
+	error_kernel.setArg( 5, d_max );
+	error_kernel.setArg( 6, radius );
+	error_kernel.setArg( 7, lambda );
+	error_kernel.setArg( 8, eps );
 
 
 	// Set workspaces to three dimensions, d being the third dimension
@@ -323,15 +359,41 @@ void COCV::run (const std::vector<cl::Event> *events, cl::Event *event)
 {
 	try
 	{
-		cl_int err = queue.enqueueNDRangeKernel (dt_kernel, cl::NullRange, global, cl::NullRange);
+
+		cl_int err;
 		
+		// Run WTA kernel
+		err = queue.enqueueNDRangeKernel (wta_kernel, cl::NullRange, global, cl::NullRange);
+
+		//--- Primal-Dual + Cost volume optimization ----//
+		
+		// Calculate Diffusion tensors
+		err = queue.enqueueNDRangeKernel (dt_kernel, cl::NullRange, global, cl::NullRange);
+
+		// Do preconditioning on the linear operator (D and nabla )		
 		err = queue.enqueueNDRangeKernel ( precond_kernel, cl::NullRange, global, cl::NullRange );
 
-		err = queue.enqueueNDRangeKernel( dual_update_kernel, cl::NullRange, global, cl::NullRange );
+		int num_itr = 150;
 
-		err = queue.enqueueNDRangeKernel( primal_update_kernel, cl::NullRange, global, cl::NullRange );
+		for( int i=0; i<num_itr; i++)
+		{
+			// Dual update
+			err = queue.enqueueNDRangeKernel( dual_update_kernel, cl::NullRange, global, cl::NullRange );
 
-		err = queue.enqueueNDRangeKernel( head_primal_update_kernel, cl::NullRange, global, cl::NullRange );
+			/// Primal update
+			err = queue.enqueueNDRangeKernel( primal_update_kernel, cl::NullRange, global, cl::NullRange );
+
+			// Head primal update
+			err = queue.enqueueNDRangeKernel( head_primal_update_kernel, cl::NullRange, global, cl::NullRange );
+
+			// Pixel-wise line search in cost-volume
+			err = queue.enqueueNDRangeKernel( pixel_wise_search_kernel, cl::NullRange, global, cl::NullRange );
+
+			// TODO:: Update theta
+
+			err = queue.enqueueNDRangeKernel( error_kernel, cl::NullRange, global, cl::NullRange );
+
+		}		
 
 	}
 	catch (const char *error)

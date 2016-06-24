@@ -1278,7 +1278,7 @@ void WTA_Optimizer(global float *in, global float *out, int d_min,int n)
  *
  */
 kernel
-void WTA_Kernel( global float *in, global float *min_cost, global float *max_cost, global float *primal_disp_u, 
+void WTA_Kernel( global float *in, global float *min_cost, global float *max_cost, global float *min_disp, 
 					int min_d, int max_d, int radius, float MAX_COST)
 {
 	// Workspace dimensions
@@ -1314,7 +1314,7 @@ void WTA_Kernel( global float *in, global float *min_cost, global float *max_cos
 
 		int idx = gY*gXdim + gX;
 
-		primal_disp_u[ idx ] = ((float)min_cost_idx)/((float)num_layers-1);
+		min_disp[ idx ] = ((float)min_cost_idx)/((float)num_layers-1);
 
 		min_cost[ idx ] = cost_min;
 		max_cost[ idx ] = cost_max;

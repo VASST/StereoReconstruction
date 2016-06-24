@@ -1639,4 +1639,59 @@ void CostVolumePixelWiseSearch(global float *aux, global float *max_disp_cost, g
 	}
 
 }
+
+/*! \brief Huber-L1 Cost Volume Pixel-wise Error
+ *
+ */
+kernel
+void HuberL1CVError(global float *primal, global float *diffusion_tensor, global float *cost_volume, 
+						global float *error_img, 
+						int min_d, int max_d, int radius, float lambda, float epsilon)
+{
+	// Workspace dimensions
+    const int gXdim = get_global_size (0);
+	const int gYdim = get_global_size (1);
+
+    // Workspace indices
+    const int gX = get_global_id (0);
+    const int gY = get_global_id (1);
+
+	const int idx = gY*gXdim + gX;
+
+	const int d_layers = max_d - min_d + 1;
+
+	if( gX < gXdim-radius && radius < gX && gY < gYdim-radius && max_d + radius < gY )
+	{
+		float nabla_primal[2] = {0.f, 0.f};
+
+		if( gX < gXdim-radius )
+			nabla_primal[0] = primal[ idx + 1 ] - primal[ idx ];
+
+		if( gY < gYdim - radius )
+			nabla_primal[1] = primal[ idx + gXdim ] - primal[ idx ];
+
+		float D_nabla_primal[2] = {0.f, 0.f};
+
+		if( gX < gXdim-radius-1 )
+			D_nabla_primal[0] = diffusion_tensor[ idx ]*nabla_primal[0] + diffusion_tensor[ idx + 1 ]*nabla_primal[1];
+
+		if( gY < gYdim-radius-1 )
+			D_nabla_primal[1] = diffusion_tensor[ idx + 2]*nabla_primal[0] + diffusion_tensor[ idx + 3 ]*nabla_primal[1];
+
+		float huber_norm;
+		float norm_reg = sqrt( D_nabla_primal[0]*D_nabla_primal[0] + D_nabla_primal[1]*D_nabla_primal[1]);
+
+		if( norm_reg < epsilon )
+			huber_norm = (norm_reg*norm_reg)/(2.f*epsilon); 
+		else
+			huber_norm = fabs( D_nabla_primal[0]) - fabs( D_nabla_primal[1] ) - epsilon/2.f;
+
+		int z = primal[ idx ]*(d_layers - 1);
+		float cost_val = cost_volume[ z*gXdim*gYdim + idx ];
+
+		error_img[ idx ] = huber_norm + lambda*cost_val;
+	}
+}
+
+
 								

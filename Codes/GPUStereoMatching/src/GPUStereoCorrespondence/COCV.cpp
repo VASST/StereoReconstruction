@@ -47,6 +47,9 @@ COCV::COCV (clutils::CLEnv &_env, clutils::CLEnvInfo<1> _info):
 							dt_kernel(env.getProgram (info.pgIdx), "DiffuseTensor"), 
 							precond_kernel(env.getProgram(info.pgIdx), "DiffusionPreconditioning"), 
 							dual_update_kernel(env.getProgram(info.pgIdx), "HuberL2DualUpdate"),
+							primal_update_kernel(env.getProgram(info.pgIdx), "HuberL2PrimalUpdate"),
+							head_primal_update_kernel(env.getProgram(info.pgIdx), "HuberL2HeadPrimalUpdate"),
+							pixel_wise_search_kernel(env.getProgram(info.pgIdx), "CostVolumePixelWiseSearch"),
 							waitList (1), 
 							radius( 1.f ), eps( 0.01 )
 {
@@ -155,12 +158,12 @@ void* COCV::read ( COCV::Memory mem, bool block,
  *  \param[in] _d_levels disparity levels 
  *  \param[in] _staging flag to indicate whether or not to instantiate the staging buffers.
  */
-void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, float _alpha, float _beta, 
+void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, float _alpha, float _beta, float _theta,
 								float _eps, Staging _staging)
 {
 	width = _width; height = _height; d_min = _d_min; d_max = _d_max; 
 	numLayers = d_max - d_min +1;
-	alpha  = _alpha; beta = _beta; eps = _eps;
+	alpha  = _alpha; beta = _beta; eps = _eps; theta = _theta;
 	radius = _radius;
 	bufferSize = width * height * sizeof (cl_float);
 	costBufferSize = numLayers * width * height * sizeof(cl_float);
@@ -244,6 +247,12 @@ void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, fl
 	dual_step_sigma0 = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
 	dual_step_sigma1 = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
 	primal_step_tau = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
+	head_primal = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
+	dual_p0 = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
+	dual_p1 = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
+	old_primal = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
+	new_primal = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
+	aux  = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
 
 
 	// Setup DiffusionTensor kernel.
@@ -264,7 +273,41 @@ void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, fl
 	precond_kernel.setArg( 5, d_max );
 	precond_kernel.setArg( 6, radius);
 
-	// Setup 
+	// Setup HuberL2DualUpdate
+	dual_update_kernel.setArg( 0, dTensorBuffer);
+	dual_update_kernel.setArg( 1, head_primal );
+	dual_update_kernel.setArg( 2, dual_step_sigma0);
+	dual_update_kernel.setArg( 3, dual_step_sigma1);
+	dual_update_kernel.setArg( 4, dual_p0);
+	dual_update_kernel.setArg( 5, dual_p1);
+	dual_update_kernel.setArg( 6, eps );
+	dual_update_kernel.setArg( 7, d_max );
+	dual_update_kernel.setArg( 8, radius);
+
+	// Setup HuberL2PrimalUpdate
+	primal_update_kernel.setArg( 0, dTensorBuffer);
+	primal_update_kernel.setArg( 1, old_primal );
+	primal_update_kernel.setArg( 2, primal_step_tau );
+	primal_update_kernel.setArg( 3, dual_p0 );
+	primal_update_kernel.setArg( 4, dual_p1 );
+	primal_update_kernel.setArg( 5, aux );
+	primal_update_kernel.setArg( 6, new_primal );
+	primal_update_kernel.setArg( 7, eps );
+	primal_update_kernel.setArg( 8, d_max );
+	primal_update_kernel.setArg( 9, radius );
+	primal_update_kernel.setArg( 10, theta );
+
+	// Setup HuberL2HeadPrimalUpdate
+	head_primal_update_kernel.setArg( 0, head_primal );
+	head_primal_update_kernel.setArg( 1, new_primal );
+	head_primal_update_kernel.setArg( 2, old_primal );
+	head_primal_update_kernel.setArg( 3, d_max );
+	head_primal_update_kernel.setArg( 4, radius );
+	head_primal_update_kernel.setArg( 5, theta );
+
+	// Setup CostVolumePixelWiseSearch
+
+
 
 	// Set workspaces to three dimensions, d being the third dimension
     global = cl::NDRange (width, height);
@@ -283,6 +326,13 @@ void COCV::run (const std::vector<cl::Event> *events, cl::Event *event)
 		cl_int err = queue.enqueueNDRangeKernel (dt_kernel, cl::NullRange, global, cl::NullRange);
 		
 		err = queue.enqueueNDRangeKernel ( precond_kernel, cl::NullRange, global, cl::NullRange );
+
+		err = queue.enqueueNDRangeKernel( dual_update_kernel, cl::NullRange, global, cl::NullRange );
+
+		err = queue.enqueueNDRangeKernel( primal_update_kernel, cl::NullRange, global, cl::NullRange );
+
+		err = queue.enqueueNDRangeKernel( head_primal_update_kernel, cl::NullRange, global, cl::NullRange );
+
 	}
 	catch (const char *error)
     {

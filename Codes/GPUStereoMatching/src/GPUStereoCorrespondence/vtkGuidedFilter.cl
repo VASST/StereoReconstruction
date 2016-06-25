@@ -1582,11 +1582,11 @@ void HuberL2HeadPrimalUpdate(global float *head_primal, global float *primal,  g
     const int gX = get_global_id (0);
     const int gY = get_global_id (1);
 
-	if( gX < gXdim-radius && radius < gX && gY < gYdim-radius && max_d + radius < gY )
+	if( gY < gYdim-radius && radius < gY && gX < gXdim-radius && max_d + radius < gX )
 	{
 		const int idx = gY*gXdim + gX;
 
-		head_primal[ idx ] = primal[ idx ] + theta*primal[ idx ] - old_primal[ idx ];
+		head_primal[ idx ] = primal[ idx ] + theta*(primal[ idx ] - old_primal[ idx ]);
 	}
 
 }
@@ -1612,7 +1612,7 @@ void CostVolumePixelWiseSearch(global float *aux, global float *max_disp_cost, g
 
 	const int d_layers = max_d - min_d + 1;
 
-	if( gX < gXdim-radius && radius < gX && gY < gYdim-radius && max_d + radius < gY )
+	if( gY < gYdim-radius && radius < gY && gX < gXdim-radius && max_d + radius < gX )
 	{
 		float max_min_cost_diff = max_disp_cost[ idx ] - min_disp_cost[ idx ];
 
@@ -1622,20 +1622,21 @@ void CostVolumePixelWiseSearch(global float *aux, global float *max_disp_cost, g
 		lower_bound = select( lower_bound , 0 ,lower_bound < 0);
 		upper_bound = select( upper_bound , d_layers-1, upper_bound > d_layers -1 );
 
-		float Eaux_min = 100.f, Eaux;
+		float Eaux_min = 1000.f, Eaux;
 
 		for( int z = lower_bound; z <= upper_bound; z++)
 		{
-			float aux_normalized = z/(float)(d_layers-1);
+			float aux_normalized = ((float)z)/(float)(d_layers-1);
 
-			Eaux = 0.5f*(1.f/theta)*pow(( primal[ idx ] - aux_normalized ), 2.0f) - lambda*cost_volume[ z*gXdim*gYdim + idx ];
+			Eaux = 0.5f*(1.f/theta)*pow(( primal[ idx ] - aux_normalized ), 2.0f) + lambda*cost_volume[ z*gXdim*gYdim + idx ];
 
 			if( Eaux < Eaux_min )
 			{
 				Eaux_min = Eaux;
 				aux[ idx ] = aux_normalized;
-			}
+			} 
 		} 
+		aux[ idx ] = upper_bound;
 	}
 
 }
@@ -1660,7 +1661,7 @@ void HuberL1CVError(global float *primal, global float *diffusion_tensor, global
 
 	const int d_layers = max_d - min_d + 1;
 
-	if( gX < gXdim-radius && radius < gX && gY < gYdim-radius && max_d + radius < gY )
+	if( gY < gYdim-radius && radius < gY && gX < gXdim-radius && max_d + radius < gX )
 	{
 		float nabla_primal[2] = {0.f, 0.f};
 

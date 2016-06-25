@@ -144,7 +144,7 @@ void* COCV::read ( COCV::Memory mem, bool block,
          switch (mem)
          {
 		 case COCV::Memory::H_OUT:
-				 queue.enqueueReadBuffer (dBufferOut, block, 0, bufferSize, hPtrOut, events, event);
+			 queue.enqueueReadBuffer (error_img, block, 0, bufferSize, hPtrOut, events, event);
                   return hPtrOut;
              default:
                   return nullptr;
@@ -160,12 +160,13 @@ void* COCV::read ( COCV::Memory mem, bool block,
  *  \param[in] _d_levels disparity levels 
  *  \param[in] _staging flag to indicate whether or not to instantiate the staging buffers.
  */
-void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, float _alpha, float _beta, float _theta, float _lambda,
+void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, float _alpha, float _beta, float _theta, 
+							float _theta_gamma, float _lambda,
 								float _eps, Staging _staging)
 {
 	width = _width; height = _height; d_min = _d_min; d_max = _d_max; 
 	numLayers = d_max - d_min +1;
-	alpha  = _alpha; beta = _beta; eps = _eps; theta = _theta; lambda = _lambda;
+	alpha  = _alpha; beta = _beta; eps = _eps; theta = _theta; theta_gamma = _theta_gamma, lambda = _lambda;
 	radius = _radius;
 	bufferSize = width * height * sizeof (cl_float);
 	costBufferSize = numLayers * width * height * sizeof(cl_float);
@@ -245,21 +246,20 @@ void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, fl
     if (dBufferOut () == nullptr)
         dBufferOut = cl::Buffer (context, CL_MEM_READ_WRITE, bufferSize);
 
-	dTensorBuffer  = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize*4 );
-	dual_step_sigma0 = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
-	dual_step_sigma1 = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
-	primal_step_tau = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
-	head_primal = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
-	dual_p0 = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
-	dual_p1 = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
-	old_primal = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
-	new_primal = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
-	aux  = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
-	max_disp_cost = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
-	min_disp_cost = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
-	min_disp = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );
-	error_img = cl::Buffer( context,  CL_MEM_READ_WRITE, bufferSize );
-
+	dTensorBuffer  = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize*4 ); 
+	dual_step_sigma0 = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize ); 
+	dual_step_sigma1 = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize ); 
+	primal_step_tau = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize ); 
+	head_primal = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize ); 
+	dual_p0 = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize );  
+	dual_p1 = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize ); 
+	old_primal = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize ); 
+	new_primal = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize ); 
+	aux  = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize ); 
+	max_disp_cost = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize ); // To be Initialized by WTA kernel
+	min_disp_cost = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize ); // To be Initialized by WTA kernel
+	min_disp = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize ); // To be Initialized by WTA kernel
+	error_img = cl::Buffer( context,  CL_MEM_READ_WRITE, bufferSize ); 
 
 	// Setup WTA kernel
 	wta_kernel.setArg( 0, dCostBufferIn );
@@ -269,7 +269,7 @@ void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, fl
 	wta_kernel.setArg( 4, d_min );
 	wta_kernel.setArg( 5, d_max );
 	wta_kernel.setArg( 6, radius );
-	wta_kernel.setArg( 7, 10000.f); // MAX_COST
+	wta_kernel.setArg( 7, 1.f); // MAX_COST
 
 	// Setup DiffusionTensor kernel.
 	dt_kernel.setArg( 0, dImgBufferIn);
@@ -361,11 +361,28 @@ void COCV::run (const std::vector<cl::Event> *events, cl::Event *event)
 	{
 
 		cl_int err;
+
+		// Initialize buffers.
+		err = queue.enqueueFillBuffer( dTensorBuffer, (cl_float)0.f, 0, bufferSize);
+		err = queue.enqueueFillBuffer( dual_step_sigma0, (cl_float)0.f, 0, bufferSize);
+		err = queue.enqueueFillBuffer( dual_step_sigma1, (cl_float)0.f, 0, bufferSize);
+		err = queue.enqueueFillBuffer( primal_step_tau, (cl_float)0.f, 0, bufferSize);
+		err = queue.enqueueFillBuffer( head_primal, (cl_float)0.f, 0, bufferSize);
+		err = queue.enqueueFillBuffer( dual_p0, (cl_float)0.f, 0, bufferSize);
+		err = queue.enqueueFillBuffer( dual_p1, (cl_float)0.f, 0, bufferSize);
+		err = queue.enqueueFillBuffer( old_primal, (cl_float)0.f, 0, bufferSize);
+		err = queue.enqueueFillBuffer( new_primal, (cl_float)0.f, 0, bufferSize);
+		err = queue.enqueueFillBuffer( aux, (cl_float)0.f, 0, bufferSize);
+		err = queue.enqueueFillBuffer( error_img, (cl_float)0.f, 0, bufferSize);
 		
 		// Run WTA kernel
 		err = queue.enqueueNDRangeKernel (wta_kernel, cl::NullRange, global, cl::NullRange);
 
 		//--- Primal-Dual + Cost volume optimization ----//
+		// Copy min_disp to old_primal 
+		queue.enqueueCopyBuffer(min_disp, new_primal, 0, 0, bufferSize );
+		queue.enqueueCopyBuffer(min_disp, head_primal, 0, 0, bufferSize );
+		queue.enqueueCopyBuffer(min_disp, aux, 0, 0, bufferSize );
 		
 		// Calculate Diffusion tensors
 		err = queue.enqueueNDRangeKernel (dt_kernel, cl::NullRange, global, cl::NullRange);
@@ -373,10 +390,13 @@ void COCV::run (const std::vector<cl::Event> *events, cl::Event *event)
 		// Do preconditioning on the linear operator (D and nabla )		
 		err = queue.enqueueNDRangeKernel ( precond_kernel, cl::NullRange, global, cl::NullRange );
 
-		int num_itr = 150;
+		int num_itr = 500;
 
 		for( int i=0; i<num_itr; i++)
 		{
+			// Copy old_primal to new_primal
+			queue.enqueueCopyBuffer(new_primal, old_primal, 0, 0, bufferSize );
+
 			// Dual update
 			err = queue.enqueueNDRangeKernel( dual_update_kernel, cl::NullRange, global, cl::NullRange );
 
@@ -390,11 +410,14 @@ void COCV::run (const std::vector<cl::Event> *events, cl::Event *event)
 			err = queue.enqueueNDRangeKernel( pixel_wise_search_kernel, cl::NullRange, global, cl::NullRange );
 
 			// TODO:: Update theta
+			theta *= 1.f - theta_gamma*i;
+			primal_update_kernel.setArg( 10, theta );
+			head_primal_update_kernel.setArg( 5, theta );
+			pixel_wise_search_kernel.setArg( 8, theta );
 
-			err = queue.enqueueNDRangeKernel( error_kernel, cl::NullRange, global, cl::NullRange );
-
-		}		
-
+			// Calculate point-wise error
+			err = queue.enqueueNDRangeKernel( error_kernel, cl::NullRange, global, cl::NullRange ); 
+		}	
 	}
 	catch (const char *error)
     {

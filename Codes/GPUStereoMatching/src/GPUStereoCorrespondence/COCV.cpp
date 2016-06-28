@@ -144,7 +144,7 @@ void* COCV::read ( COCV::Memory mem, bool block,
          switch (mem)
          {
 		 case COCV::Memory::H_OUT:
-			 queue.enqueueReadBuffer (error_img, block, 0, bufferSize, hPtrOut, events, event);
+			 queue.enqueueReadBuffer (new_primal, block, 0, bufferSize, hPtrOut, events, event);
                   return hPtrOut;
              default:
                   return nullptr;
@@ -390,7 +390,7 @@ void COCV::run (const std::vector<cl::Event> *events, cl::Event *event)
 		// Do preconditioning on the linear operator (D and nabla )		
 		err = queue.enqueueNDRangeKernel ( precond_kernel, cl::NullRange, global, cl::NullRange );
 
-		int num_itr = 500;
+		int num_itr = 2;
 
 		for( int i=0; i<num_itr; i++)
 		{
@@ -409,8 +409,8 @@ void COCV::run (const std::vector<cl::Event> *events, cl::Event *event)
 			// Pixel-wise line search in cost-volume
 			err = queue.enqueueNDRangeKernel( pixel_wise_search_kernel, cl::NullRange, global, cl::NullRange );
 
-			// TODO:: Update theta
-			theta *= 1.f - theta_gamma*i;
+			// Update theta
+			theta = theta*(1.f - theta_gamma*i);
 			primal_update_kernel.setArg( 10, theta );
 			head_primal_update_kernel.setArg( 5, theta );
 			pixel_wise_search_kernel.setArg( 8, theta );

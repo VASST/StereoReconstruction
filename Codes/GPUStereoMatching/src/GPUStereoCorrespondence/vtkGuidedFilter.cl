@@ -1199,7 +1199,10 @@ void compute_cost(global float *L, global float *R,
 			float den = (square_sum_L - sumL*sumL/N)*(square_sum_R - sumR*sumR/N);
 
 			// Similarity measures
-			float zncc = num/sqrt(den);	
+			float zncc = inf;
+			if( den > 0 )
+				zncc = 1.f - (num/sqrt(den)+1.f)/2.f;	// We need to make sure that high zncc means low cost. Hence 1-zncc
+
 			float absolute_diff = 0.f;
 			float gradient_cost = 0.f;
 
@@ -1365,7 +1368,7 @@ void DiffuseTensor(global float *img, global float *tensor, float alpha, float b
 			p_n[0] = -n[1];
 			p_n[1] = n[0];
 
-			/* Diffusion tensor indexed as [0 2; 1 3] */
+			/* Diffusion tensor indexed as [Dxx Dyx Dxy Dyy] */
 			int id = gY*gXdim + gX;
 			tensor[ id ]   = edge_weight*(n[0]*n[0]) + p_n[0]*p_n[0];
 			tensor[ id+1 ] = edge_weight*(n[1]*n[0]) + p_n[1]*p_n[0];
@@ -1423,7 +1426,7 @@ void DiffusionPreconditioning(global float *diffusion_tensor, global float *dual
 
 		/* D*nabla sum */
 		if( gX < gXdim+min_d-radius-1)
-			dual_step_sigma0[  idx ] = 2*fabs(D[0]) + 2*fabs(D[2]);
+			dual_step_sigma0[ idx ] = 2*fabs(D[0]) + 2*fabs(D[2]);
 
 		if( gY < gYdim -radius -1)
 			dual_step_sigma1[ idx ]  = 2*fabs(D[1]) + 2*fabs(D[3]);
@@ -1439,7 +1442,7 @@ void DiffusionPreconditioning(global float *diffusion_tensor, global float *dual
 		primal_step_tau[ idx ] += fabs(D[1]) + fabs(D[3]);
 
 		if( gY > radius && gX > max_d + radius)
-			primal_step_tau[ idx ] += fabs(Dx[0]) + fabs(Dx[3]);
+			primal_step_tau[ idx ] += fabs(Dx[0]) + fabs(Dy[3]);
 
 		if( gY == radius && gX < max_d+radius)
 			primal_step_tau[ idx ] += fabs(Dy[3]);
@@ -1448,7 +1451,7 @@ void DiffusionPreconditioning(global float *diffusion_tensor, global float *dual
 			primal_step_tau[ idx ] += fabs(Dx[0]);
 		
 		float val = primal_step_tau[ idx ];
-		primal_step_tau[ idx ] =select(1.f/val , 0.f,val == 0.f); 
+		primal_step_tau[ idx ] =select(1.f/val , 0.f, val == 0.f); 
 	}
 
 }
@@ -1550,10 +1553,10 @@ void HuberL2PrimalUpdate(global float *diffusion_tensor, global float *old_prima
 		Dy[3] = diffusion_tensor[ idx - gXdim +3 ];
 
 		if( gX < gXdim-radius )
-			div_D_dual += (D[0]+D[2])*dual_p0[ idx ];
+			div_D_dual += -(D[0]+D[2])*dual_p0[ idx ];
 
 		if( gY < gYdim-radius )
-			div_D_dual += (D[1]+D[3])*dual_p1[ idx ];
+			div_D_dual += -(D[1]+D[3])*dual_p1[ idx ];
 
 		if( gX > max_d + radius )
 			div_D_dual += Dx[0]*dual_p0[ idx -1 ];
@@ -1622,11 +1625,11 @@ void CostVolumePixelWiseSearch(global float *aux, global float *max_disp_cost, g
 		lower_bound = select( lower_bound , 0 ,lower_bound < 0);
 		upper_bound = select( upper_bound , d_layers-1, upper_bound > d_layers -1 );
 
-		float Eaux_min = 1000.f, Eaux;
+		float Eaux_min = 100.f, Eaux;
 
 		for( int z = lower_bound; z <= upper_bound; z++)
 		{
-			float aux_normalized = ((float)z)/(float)(d_layers-1);
+			float aux_normalized = ((float)z)/((float)(d_layers-1));
 
 			Eaux = 0.5f*(1.f/theta)*pow(( primal[ idx ] - aux_normalized ), 2.0f) + lambda*cost_volume[ z*gXdim*gYdim + idx ];
 
@@ -1636,7 +1639,6 @@ void CostVolumePixelWiseSearch(global float *aux, global float *max_disp_cost, g
 				aux[ idx ] = aux_normalized;
 			} 
 		} 
-		aux[ idx ] = upper_bound;
 	}
 
 }
@@ -1685,12 +1687,13 @@ void HuberL1CVError(global float *primal, global float *diffusion_tensor, global
 		if( norm_reg < epsilon )
 			huber_norm = (norm_reg*norm_reg)/(2.f*epsilon); 
 		else
-			huber_norm = fabs( D_nabla_primal[0]) - fabs( D_nabla_primal[1] ) - epsilon/2.f;
+			huber_norm = fabs( D_nabla_primal[0]) + fabs( D_nabla_primal[1] ) - epsilon/2.f;
 
 		int z = primal[ idx ]*(d_layers - 1);
-		float cost_val = cost_volume[ z*gXdim*gYdim + idx ];
+		//float cost_val = cost_volume[ z*gXdim*gYdim + idx ];
 
-		error_img[ idx ] = huber_norm + lambda*cost_val;
+		//error_img[ idx ] = huber_norm + lambda*cost_val;
+		error_img[ idx ] = z;
 	}
 }
 

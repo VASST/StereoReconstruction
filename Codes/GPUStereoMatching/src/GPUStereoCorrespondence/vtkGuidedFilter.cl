@@ -1333,7 +1333,7 @@ void WTA_Kernel( global float *in, global float *min_cost, global float *max_cos
  *             So this array is 4*width*height long. 
  */
 kernel
-void DiffuseTensor(global float *img, global float *tensor, float alpha, float beta, int min_d, int max_d, int radius)
+void DiffuseTensor(global float *img, global float4 *tensor, float alpha, float beta, int min_d, int max_d, int radius)
 {
 	// Workspace dimensions
     const int gXdim = get_global_size (0);
@@ -1356,7 +1356,7 @@ void DiffuseTensor(global float *img, global float *tensor, float alpha, float b
 
 		float norm_nabla_img = sqrt( nabla_img[0]*nabla_img[0] + nabla_img[1]*nabla_img[1] );
 
-		float edge_weight = exp( -alpha*pow(norm_nabla_img, beta));
+		float edge_weight = exp( -alpha*pow(norm_nabla_img, beta) );
 
 		if( norm_nabla_img > 0 )
 		{
@@ -1370,18 +1370,18 @@ void DiffuseTensor(global float *img, global float *tensor, float alpha, float b
 
 			/* Diffusion tensor indexed as [Dxx Dyx Dxy Dyy] */
 			int id = gY*gXdim + gX;
-			tensor[ id ]   = edge_weight*(n[0]*n[0]) + p_n[0]*p_n[0];
-			tensor[ id+1 ] = edge_weight*(n[1]*n[0]) + p_n[1]*p_n[0];
-			tensor[ id+2 ] = edge_weight*(n[0]*n[1]) + p_n[0]*p_n[1];
-			tensor[ id+3 ] = edge_weight*(n[1]*n[1]) + p_n[1]*p_n[1];
+			tensor[ id ].x = edge_weight*(n[0]*n[0]) + p_n[0]*p_n[0];
+			tensor[ id ].y = edge_weight*(n[1]*n[0]) + p_n[1]*p_n[0];
+			tensor[ id ].z = edge_weight*(n[0]*n[1]) + p_n[0]*p_n[1];
+			tensor[ id ].w = edge_weight*(n[1]*n[1]) + p_n[1]*p_n[1];
 		}
 		else
 		{
 			int id = gY*gXdim + gX;
-			tensor[ id ]   = edge_weight;
-			tensor[ id+1 ] = 0.f;
-			tensor[ id+2 ] = 0.f;
-			tensor[ id+3 ] = edge_weight; 
+			tensor[ id ].x = edge_weight;
+			tensor[ id ].y = 0.f;
+			tensor[ id ].z = 0.f;
+			tensor[ id ].w = edge_weight; 
 		}
 
 	}
@@ -1391,7 +1391,7 @@ void DiffuseTensor(global float *img, global float *tensor, float alpha, float b
  * \param[in] diffusion_tensor input pointer to Diffusion Tensor array 
  */
 kernel 
-void DiffusionPreconditioning(global float *diffusion_tensor, global float *dual_step_sigma0, global float *dual_step_sigma1, 
+void DiffusionPreconditioning(global float4 *diffusion_tensor, global float *dual_step_sigma0, global float *dual_step_sigma1, 
 										global float *primal_step_tau, 
 											int min_d, int max_d, int radius)
 {
@@ -1409,20 +1409,20 @@ void DiffusionPreconditioning(global float *diffusion_tensor, global float *dual
 
 		const int idx = gY*gXdim + gX;
 
-		D[0] = diffusion_tensor[ idx ];
-		D[1] = diffusion_tensor[ idx+1 ];
-		D[2] = diffusion_tensor[ idx+2 ];
-		D[3] = diffusion_tensor[ idx+3 ];
+		D[0] = diffusion_tensor[ idx ].x;
+		D[1] = diffusion_tensor[ idx ].y;
+		D[2] = diffusion_tensor[ idx ].z;
+		D[3] = diffusion_tensor[ idx ].w;
 
-		Dx[0] = diffusion_tensor[ idx-4 ];
-		Dx[1] = diffusion_tensor[ idx-3 ];
-		Dx[2] = diffusion_tensor[ idx-2 ];
-		Dx[3] = diffusion_tensor[ idx-1 ];
+		Dx[0] = diffusion_tensor[ idx-1 ].x;
+		Dx[1] = diffusion_tensor[ idx-1 ].y;
+		Dx[2] = diffusion_tensor[ idx-1 ].z;
+		Dx[3] = diffusion_tensor[ idx-1 ].w;
 
-		Dy[0] = diffusion_tensor[ idx - gXdim ];
-		Dy[1] = diffusion_tensor[ idx - gXdim +1 ];
-		Dy[2] = diffusion_tensor[ idx - gXdim +2 ];
-		Dy[3] = diffusion_tensor[ idx - gXdim +3 ];
+		Dy[0] = diffusion_tensor[ idx - gXdim ].x;
+		Dy[1] = diffusion_tensor[ idx - gXdim ].y;
+		Dy[2] = diffusion_tensor[ idx - gXdim ].z;
+		Dy[3] = diffusion_tensor[ idx - gXdim ].w;
 
 		/* D*nabla sum */
 		if( gX < gXdim+min_d-radius-1)
@@ -1452,6 +1452,8 @@ void DiffusionPreconditioning(global float *diffusion_tensor, global float *dual
 		
 		float val = primal_step_tau[ idx ];
 		primal_step_tau[ idx ] =select(1.f/val , 0.f, val == 0.f); 
+
+		primal_step_tau[ idx ] = Dy[3];
 	}
 
 }
@@ -1461,7 +1463,7 @@ void DiffusionPreconditioning(global float *diffusion_tensor, global float *dual
  * \param[in] 
  */
 kernel
-void HuberL2DualUpdate(global float *diffusion_tensor, global float *head_primal, global float *dual_step_sigma0, global float *dual_step_sigma1,
+void HuberL2DualUpdate(global float4 *diffusion_tensor, global float *head_primal, global float *dual_step_sigma0, global float *dual_step_sigma1,
 								global float *dual_p0, global float *dual_p1, float epsilon, int max_d, int radius)
 {
 	// Workspace dimensions
@@ -1478,10 +1480,10 @@ void HuberL2DualUpdate(global float *diffusion_tensor, global float *head_primal
 
 		int idx = gY*gXdim + gX;
 		
-		D[0] = diffusion_tensor[ idx ];
-		D[1] = diffusion_tensor[ idx+1 ];
-		D[2] = diffusion_tensor[ idx+2 ];
-		D[3] = diffusion_tensor[ idx+3 ];
+		D[0] = diffusion_tensor[ idx ].x;
+		D[1] = diffusion_tensor[ idx ].y;
+		D[2] = diffusion_tensor[ idx ].z;
+		D[3] = diffusion_tensor[ idx ].w;
 
 		// D*nabla(primal) : primal - disparity function. 
 		if( gX < gXdim-radius-1 )
@@ -1518,7 +1520,7 @@ void HuberL2DualUpdate(global float *diffusion_tensor, global float *head_primal
  *
  */
 kernel
-void HuberL2PrimalUpdate(global float *diffusion_tensor, global float *old_primal, global float *primal_step, 
+void HuberL2PrimalUpdate(global float4 *diffusion_tensor, global float *old_primal, global float *primal_step, 
 										global float *dual_p0, global float *dual_p1, global float *aux, 
 										 global float *new_primal, 
 												float epsilon, int max_d, int radius, float theta)
@@ -1537,20 +1539,20 @@ void HuberL2PrimalUpdate(global float *diffusion_tensor, global float *old_prima
 
 		const int idx = gY*gXdim + gX;
 
-		D[0] = diffusion_tensor[ idx ];
-		D[1] = diffusion_tensor[ idx+1 ];
-		D[2] = diffusion_tensor[ idx+2 ];
-		D[3] = diffusion_tensor[ idx+3 ]; 
+		D[0] = diffusion_tensor[ idx ].x;
+		D[1] = diffusion_tensor[ idx ].y;
+		D[2] = diffusion_tensor[ idx ].z;
+		D[3] = diffusion_tensor[ idx ].w; 
 
-		Dx[0] = diffusion_tensor[ idx - 4 ];
-		Dx[1] = diffusion_tensor[ idx - 3 ];
-		Dx[2] = diffusion_tensor[ idx - 2 ];
-		Dx[3] = diffusion_tensor[ idx - 1 ];
+		Dx[0] = diffusion_tensor[ idx - 1 ].x;
+		Dx[1] = diffusion_tensor[ idx - 1 ].y;
+		Dx[2] = diffusion_tensor[ idx - 1 ].z;
+		Dx[3] = diffusion_tensor[ idx - 1 ].w;
 
-		Dy[0] = diffusion_tensor[ idx - gXdim ];
-		Dy[1] = diffusion_tensor[ idx - gXdim +1 ];
-		Dy[2] = diffusion_tensor[ idx - gXdim +2 ];
-		Dy[3] = diffusion_tensor[ idx - gXdim +3 ];
+		Dy[0] = diffusion_tensor[ idx - gXdim ].x;
+		Dy[1] = diffusion_tensor[ idx - gXdim ].y;
+		Dy[2] = diffusion_tensor[ idx - gXdim ].z;
+		Dy[3] = diffusion_tensor[ idx - gXdim ].w;
 
 		if( gX < gXdim-radius )
 			div_D_dual += -(D[0]+D[2])*dual_p0[ idx ];

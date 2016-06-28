@@ -144,7 +144,7 @@ void* COCV::read ( COCV::Memory mem, bool block,
          switch (mem)
          {
 		 case COCV::Memory::H_OUT:
-			 queue.enqueueReadBuffer (new_primal, block, 0, bufferSize, hPtrOut, events, event);
+			 queue.enqueueReadBuffer (primal_step_tau, block, 0, bufferSize, hPtrOut, events, event);
                   return hPtrOut;
              default:
                   return nullptr;
@@ -246,7 +246,7 @@ void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, fl
     if (dBufferOut () == nullptr)
         dBufferOut = cl::Buffer (context, CL_MEM_READ_WRITE, bufferSize);
 
-	dTensorBuffer  = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize*4 ); 
+	dTensorBuffer  = cl::Buffer( context, CL_MEM_READ_WRITE, width*height*sizeof(cl_float4) ); 
 	dual_step_sigma0 = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize ); 
 	dual_step_sigma1 = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize ); 
 	primal_step_tau = cl::Buffer( context, CL_MEM_READ_WRITE, bufferSize ); 
@@ -342,7 +342,7 @@ void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, fl
 	error_kernel.setArg( 5, d_max );
 	error_kernel.setArg( 6, radius );
 	error_kernel.setArg( 7, lambda );
-	error_kernel.setArg( 8, eps );
+	error_kernel.setArg( 8, eps ); 
 
 
 	// Set workspaces to three dimensions, d being the third dimension
@@ -363,7 +363,7 @@ void COCV::run (const std::vector<cl::Event> *events, cl::Event *event)
 		cl_int err;
 
 		// Initialize buffers.
-		err = queue.enqueueFillBuffer( dTensorBuffer, (cl_float)0.f, 0, bufferSize);
+		err = queue.enqueueFillBuffer( dTensorBuffer, (0.f, 0.f, 0.f, 0.f), 0, width*height*sizeof(cl_float4));
 		err = queue.enqueueFillBuffer( dual_step_sigma0, (cl_float)0.f, 0, bufferSize);
 		err = queue.enqueueFillBuffer( dual_step_sigma1, (cl_float)0.f, 0, bufferSize);
 		err = queue.enqueueFillBuffer( primal_step_tau, (cl_float)0.f, 0, bufferSize);
@@ -389,8 +389,8 @@ void COCV::run (const std::vector<cl::Event> *events, cl::Event *event)
 
 		// Do preconditioning on the linear operator (D and nabla )		
 		err = queue.enqueueNDRangeKernel ( precond_kernel, cl::NullRange, global, cl::NullRange );
-
-		int num_itr = 2;
+		
+		int num_itr = 1;
 
 		for( int i=0; i<num_itr; i++)
 		{

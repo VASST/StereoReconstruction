@@ -390,7 +390,7 @@ void COCV::run (const std::vector<cl::Event> *events, cl::Event *event)
 		// Do preconditioning on the linear operator (D and nabla )		
 		err = queue.enqueueNDRangeKernel ( precond_kernel, cl::NullRange, global, cl::NullRange );
 		
-		int num_itr = 100;
+		int num_itr = 150;
 
 		for( int i=0; i<num_itr; i++)
 		{

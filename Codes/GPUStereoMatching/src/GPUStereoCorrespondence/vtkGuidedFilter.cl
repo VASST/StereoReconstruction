@@ -1343,7 +1343,7 @@ void DiffuseTensor(global float *img, global float4 *tensor, float alpha, float 
     const int gX = get_global_id (0);
     const int gY = get_global_id (1);
 
-	if( radius < gY && gY < gYdim-radius && gX < gXdim+min_d-radius && max_d+radius < gX)
+	if( radius < gY && gY < gYdim-radius-1 && gX < gXdim+min_d-radius-1 && max_d+radius < gX)
 	{
 		float nabla_img[2];
 		float current_data = img[ gY*gXdim + gX ];
@@ -1531,7 +1531,7 @@ void HuberL2PrimalUpdate(global float4 *diffusion_tensor, global float *old_prim
     const int gX = get_global_id (0);
     const int gY = get_global_id (1);
 
-	if( gX < gXdim-radius && radius < gX && gY < gYdim-radius && max_d + radius < gY )
+	if( gY < gYdim-radius && radius < gY && gX < gXdim-radius && max_d + radius < gX )
 	{
 		float div_D_dual = 0.0, D[4], Dx[4], Dy[4];
 

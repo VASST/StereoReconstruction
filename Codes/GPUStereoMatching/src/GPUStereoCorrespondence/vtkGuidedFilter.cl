@@ -1317,7 +1317,7 @@ void WTA_Kernel( global float *in, global float *min_cost, global float *max_cos
 
 		int idx = gY*gXdim + gX;
 
-		min_disp[ idx ] = ((float)min_cost_idx)/((float)num_layers-1);
+		min_disp[ idx ] = ((float)min_cost_idx)/((float)num_layers-1.f);
 
 		min_cost[ idx ] = cost_min;
 		max_cost[ idx ] = cost_max;
@@ -1444,16 +1444,14 @@ void DiffusionPreconditioning(global float4 *diffusion_tensor, global float *dua
 		if( gY > radius && gX > max_d + radius)
 			primal_step_tau[ idx ] += fabs(Dx[0]) + fabs(Dy[3]);
 
-		if( gY == radius && gX < max_d+radius)
+		if( gY == radius && gX > max_d+radius)
 			primal_step_tau[ idx ] += fabs(Dy[3]);
 
 		if( gX == max_d + radius && gY > radius)
 			primal_step_tau[ idx ] += fabs(Dx[0]);
 		
 		float val = primal_step_tau[ idx ];
-		primal_step_tau[ idx ] =select(1.f/val , 0.f, val == 0.f); 
-
-		primal_step_tau[ idx ] = Dy[3];
+		primal_step_tau[ idx ] = select(1.f/val , 0.f, val == 0.f); 
 	}
 
 }
@@ -1577,7 +1575,7 @@ void HuberL2PrimalUpdate(global float4 *diffusion_tensor, global float *old_prim
  */ 
 kernel 
 void HuberL2HeadPrimalUpdate(global float *head_primal, global float *primal,  global float *old_primal, 
-									int max_d, int radius, float theta)
+									int max_d, int radius, float gamma)
 {
 	// Workspace dimensions
     const int gXdim = get_global_size (0);
@@ -1591,7 +1589,7 @@ void HuberL2HeadPrimalUpdate(global float *head_primal, global float *primal,  g
 	{
 		const int idx = gY*gXdim + gX;
 
-		head_primal[ idx ] = primal[ idx ] + theta*(primal[ idx ] - old_primal[ idx ]);
+		head_primal[ idx ] = primal[ idx ] + gamma*(primal[ idx ] - old_primal[ idx ]);
 	}
 
 }
@@ -1692,10 +1690,9 @@ void HuberL1CVError(global float *primal, global float *diffusion_tensor, global
 			huber_norm = fabs( D_nabla_primal[0]) + fabs( D_nabla_primal[1] ) - epsilon/2.f;
 
 		int z = primal[ idx ]*(d_layers - 1);
-		//float cost_val = cost_volume[ z*gXdim*gYdim + idx ];
+		float cost_val = cost_volume[ z*gXdim*gYdim + idx ];
 
-		//error_img[ idx ] = huber_norm + lambda*cost_val;
-		error_img[ idx ] = z;
+		error_img[ idx ] = huber_norm + lambda*cost_val;
 	}
 }
 

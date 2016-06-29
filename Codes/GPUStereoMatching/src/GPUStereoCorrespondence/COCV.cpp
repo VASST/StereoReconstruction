@@ -144,7 +144,7 @@ void* COCV::read ( COCV::Memory mem, bool block,
          switch (mem)
          {
 		 case COCV::Memory::H_OUT:
-			 queue.enqueueReadBuffer (primal_step_tau, block, 0, bufferSize, hPtrOut, events, event);
+			 queue.enqueueReadBuffer (new_primal, block, 0, bufferSize, hPtrOut, events, event);
                   return hPtrOut;
              default:
                   return nullptr;
@@ -161,12 +161,12 @@ void* COCV::read ( COCV::Memory mem, bool block,
  *  \param[in] _staging flag to indicate whether or not to instantiate the staging buffers.
  */
 void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, float _alpha, float _beta, float _theta, 
-							float _theta_gamma, float _lambda,
+							float _theta_gamma, float _lambda, float _theta2,
 								float _eps, Staging _staging)
 {
 	width = _width; height = _height; d_min = _d_min; d_max = _d_max; 
 	numLayers = d_max - d_min +1;
-	alpha  = _alpha; beta = _beta; eps = _eps; theta = _theta; theta_gamma = _theta_gamma, lambda = _lambda;
+	alpha  = _alpha; beta = _beta; eps = _eps; theta = _theta; theta_gamma = _theta_gamma, lambda = _lambda; gamma = _theta2;
 	radius = _radius;
 	bufferSize = width * height * sizeof (cl_float);
 	costBufferSize = numLayers * width * height * sizeof(cl_float);
@@ -319,7 +319,7 @@ void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, fl
 	head_primal_update_kernel.setArg( 2, old_primal );
 	head_primal_update_kernel.setArg( 3, d_max );
 	head_primal_update_kernel.setArg( 4, radius );
-	head_primal_update_kernel.setArg( 5, theta );
+	head_primal_update_kernel.setArg( 5, gamma );
 
 	// Setup CostVolumePixelWiseSearch
 	pixel_wise_search_kernel.setArg( 0, aux );
@@ -390,12 +390,17 @@ void COCV::run (const std::vector<cl::Event> *events, cl::Event *event)
 		// Do preconditioning on the linear operator (D and nabla )		
 		err = queue.enqueueNDRangeKernel ( precond_kernel, cl::NullRange, global, cl::NullRange );
 		
-		int num_itr = 1;
+		int num_itr = 100;
 
 		for( int i=0; i<num_itr; i++)
 		{
-			// Copy old_primal to new_primal
+			// Copy new_primal to old_primal
 			queue.enqueueCopyBuffer(new_primal, old_primal, 0, 0, bufferSize );
+
+			// Update theta
+			theta = theta*(1.f - theta_gamma*i);
+			primal_update_kernel.setArg( 10, theta );
+			pixel_wise_search_kernel.setArg( 8, theta );
 
 			// Dual update
 			err = queue.enqueueNDRangeKernel( dual_update_kernel, cl::NullRange, global, cl::NullRange );
@@ -409,14 +414,10 @@ void COCV::run (const std::vector<cl::Event> *events, cl::Event *event)
 			// Pixel-wise line search in cost-volume
 			err = queue.enqueueNDRangeKernel( pixel_wise_search_kernel, cl::NullRange, global, cl::NullRange );
 
-			// Update theta
-			theta = theta*(1.f - theta_gamma*i);
-			primal_update_kernel.setArg( 10, theta );
-			head_primal_update_kernel.setArg( 5, theta );
-			pixel_wise_search_kernel.setArg( 8, theta );
-
 			// Calculate point-wise error
 			err = queue.enqueueNDRangeKernel( error_kernel, cl::NullRange, global, cl::NullRange ); 
+
+			// compute error
 		}	
 	}
 	catch (const char *error)

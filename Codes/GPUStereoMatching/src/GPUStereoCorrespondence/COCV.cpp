@@ -418,6 +418,7 @@ void COCV::run (const std::vector<cl::Event> *events, cl::Event *event)
 			err = queue.enqueueNDRangeKernel( error_kernel, cl::NullRange, global, cl::NullRange ); 
 
 			// compute error
+			
 		}	
 	}
 	catch (const char *error)

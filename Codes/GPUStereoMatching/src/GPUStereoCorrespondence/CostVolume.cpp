@@ -155,11 +155,11 @@ void* CostVolume::read ( CostVolume::Memory mem, bool block,
  *  \param[in] _d_levels disparity levels 
  *  \param[in] _staging flag to indicate whether or not to instantiate the staging buffers.
  */
-void CostVolume::init(int _width, int _height, int _d_min, int _d_max, int _radius,int _cth, int _gth, double _alpha, int _type, Staging _staging)
+void CostVolume::init(Settings _settings, Staging _staging)
 {
-	width = _width; height = _height; d_min = _d_min; d_max = _d_max; color_th = _cth, grad_th = _gth;
-	alpha = _alpha;
-	radius = _radius;
+	width = _settings.width; height = _settings.height; d_min = _settings.d_min; d_max = _settings.d_max; color_th = _settings.color_th, grad_th = _settings.gradient_th;
+	alpha = _settings.alpha;
+	radius = _settings.radius;
 	bufferInSize = width * height * sizeof (cl_float);
 	bufferOutSize = (d_max-d_min+1) * width * height * sizeof(cl_float);
 	staging = _staging;
@@ -265,7 +265,7 @@ void CostVolume::init(int _width, int _height, int _d_min, int _d_max, int _radi
 	cost_calc.setArg( 8, static_cast<float>(color_th/255));
 	cost_calc.setArg( 9, static_cast<float>(grad_th/255));
 	cost_calc.setArg( 10, static_cast<float>(alpha));
-	cost_calc.setArg( 11, _type);
+	cost_calc.setArg( 11, _settings.type);
 	cost_calc.setArg( 12, 1); // REF image 1-left, 2-right
 	cost_calc.setArg( 13, static_cast<float>(1000));
 

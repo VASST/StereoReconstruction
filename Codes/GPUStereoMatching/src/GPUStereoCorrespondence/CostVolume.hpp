@@ -38,6 +38,20 @@
 class CostVolume
 {
 public:
+
+	struct Settings
+	{
+		int width;
+		int height;
+		int d_min;
+		int d_max;
+		int radius;
+		int color_th;
+		int gradient_th;
+		double alpha;
+		int type; // 0 - ZNCC, 1-AD, 2- Hosni et. al.
+	};
+
 	/*! \brief Enumerates the memory objects handled by the class.
      *  \note `H_*` names refer to staging buffers on the host.
      *  \note `D_*` names refer to buffers on the device.
@@ -79,7 +93,7 @@ public:
     cl::Memory& get (CostVolume::Memory mem);
         
 	/*! \brief Configures kernel execution parameters. */
-    void init (int _width, int _height, int _d_min, int _d_max, int _radius, int _cth, int _gth, double _alpha, int type, Staging _staging = Staging::IO);
+    void init (Settings _settings, Staging _staging = Staging::IO);
 
     /*! \brief Performs a data transfer to a device buffer. */
     void write (CostVolume::Memory mem = CostVolume::Memory::D_IN_L, void *ptr = nullptr, bool block = CL_FALSE, 

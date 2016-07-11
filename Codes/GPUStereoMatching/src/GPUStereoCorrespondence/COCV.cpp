@@ -160,14 +160,13 @@ void* COCV::read ( COCV::Memory mem, bool block,
  *  \param[in] _d_levels disparity levels 
  *  \param[in] _staging flag to indicate whether or not to instantiate the staging buffers.
  */
-void COCV::init(int _width, int _height, int _d_min, int _d_max, int _radius, float _alpha, float _beta, float _theta, 
-							float _theta_gamma, float _lambda, float _theta2,
-								float _eps, Staging _staging)
+void COCV::init(Settings _settings, Staging _staging)
 {
-	width = _width; height = _height; d_min = _d_min; d_max = _d_max; 
+
+	width = _settings.width; height = _settings.height; d_min = _settings.d_min; d_max	= _settings.d_max;
 	numLayers = d_max - d_min +1;
-	alpha  = _alpha; beta = _beta; eps = _eps; theta = _theta; theta_gamma = _theta_gamma, lambda = _lambda; gamma = _theta2;
-	radius = _radius;
+	alpha  = _settings.alpha; beta = _settings.beta; eps = _settings.eps; theta = _settings.theta; theta_gamma = _settings.theta_gamma, lambda = _settings.lambda; gamma = _settings.gamma;
+	radius = _settings.radius;
 	bufferSize = width * height * sizeof (cl_float);
 	costBufferSize = numLayers * width * height * sizeof(cl_float);
 	staging = _staging;
@@ -390,7 +389,8 @@ void COCV::run (const std::vector<cl::Event> *events, cl::Event *event)
 		// Do preconditioning on the linear operator (D and nabla )		
 		err = queue.enqueueNDRangeKernel ( precond_kernel, cl::NullRange, global, cl::NullRange );
 		
-		int num_itr = 150;
+		int num_itr = 50;
+		float new_theta = theta;
 
 		for( int i=0; i<num_itr; i++)
 		{
@@ -398,9 +398,9 @@ void COCV::run (const std::vector<cl::Event> *events, cl::Event *event)
 			queue.enqueueCopyBuffer(new_primal, old_primal, 0, 0, bufferSize );
 
 			// Update theta
-			theta = theta*(1.f - theta_gamma*i);
-			primal_update_kernel.setArg( 10, theta );
-			pixel_wise_search_kernel.setArg( 8, theta );
+			new_theta = new_theta*(1.f - theta_gamma*i);
+			primal_update_kernel.setArg( 10, new_theta );
+			pixel_wise_search_kernel.setArg( 8, new_theta );
 
 			// Dual update
 			err = queue.enqueueNDRangeKernel( dual_update_kernel, cl::NullRange, global, cl::NullRange );

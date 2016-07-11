@@ -99,9 +99,17 @@ int main(int argc, char* argv)
     const float gfEps = 0.1;
 	const int d_max = 30; 
 	const int d_min = 10;
-	const int color_th = 7;
-	const int grad_th = 4;
-	const double alpha = 0.6;
+
+	CostVolume::Settings CV_Settings;
+	CV_Settings.width = width;
+	CV_Settings.height = height;
+	CV_Settings.radius = 5;
+	CV_Settings.color_th = 7;
+	CV_Settings.gradient_th = 4;
+	CV_Settings.alpha = 0.6;
+	CV_Settings.d_max = d_max;
+	CV_Settings.d_min = d_min;
+	CV_Settings.type = 0;
 
 	/* CPU DX computation */
 	cv::Mat bgr[3];
@@ -164,7 +172,7 @@ int main(int argc, char* argv)
 	CV.get ( CostVolume::Memory::D_IN_LGRAD ) = GradF_L.get( GradientFilter::Memory::D_X_OUT);
 	CV.get ( CostVolume::Memory::D_IN_R ) = I2.get(GrayscaleFilter::Memory::D_OUT);
 	CV.get ( CostVolume::Memory::D_IN_RGRAD ) = GradF_R.get( GradientFilter::Memory::D_X_OUT);
-	CV.init( width, height, d_min, d_max, 1, color_th, grad_th, alpha, 2, CostVolume::Staging::O);
+	CV.init( CV_Settings, CostVolume::Staging::O);
 
 	// Configure guided filter (GF)
 /*	std::vector<unsigned int> v6;

@@ -39,6 +39,23 @@
 class COCV
 {
 	public:
+
+	struct Settings
+	{
+		int width;
+		int height;
+		int d_min;
+		int d_max;
+		int radius;
+		float alpha;
+		float beta;
+		float theta;
+		float theta_gamma;
+		float lambda;
+		float gamma;
+		float eps;		
+	};
+
 	/*! \brief Enumerates the memory objects handled by the class.
      *  \note `H_*` names refer to staging buffers on the host.
      *  \note `D_*` names refer to buffers on the device.
@@ -76,7 +93,7 @@ class COCV
     cl::Memory& get (COCV::Memory mem);
         
 	/*! \brief Configures kernel execution parameters. */
-    void init (int _width, int _height, int _d_min, int _d_max, int _radius, float _alpha, float _beta, float _theta, float _theta_gamma, float _lambda, float _gamma, float _eps, Staging _staging = Staging::IO);
+    void init (Settings _settings, Staging _staging = Staging::IO);
 
     /*! \brief Performs a data transfer to a device buffer. */
     void write (COCV::Memory mem = COCV::Memory::D_COST_IN, void *ptr = nullptr, bool block = CL_FALSE, 

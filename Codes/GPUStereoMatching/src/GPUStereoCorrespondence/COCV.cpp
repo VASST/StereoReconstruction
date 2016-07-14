@@ -167,6 +167,7 @@ void COCV::init(Settings _settings, Staging _staging)
 	numLayers = d_max - d_min +1;
 	alpha  = _settings.alpha; beta = _settings.beta; eps = _settings.eps; theta = _settings.theta; theta_gamma = _settings.theta_gamma, lambda = _settings.lambda; gamma = _settings.gamma;
 	radius = _settings.radius;
+	iterations = _settings.n_itr;
 	bufferSize = width * height * sizeof (cl_float);
 	costBufferSize = numLayers * width * height * sizeof(cl_float);
 	staging = _staging;
@@ -389,7 +390,7 @@ void COCV::run (const std::vector<cl::Event> *events, cl::Event *event)
 		// Do preconditioning on the linear operator (D and nabla )		
 		err = queue.enqueueNDRangeKernel ( precond_kernel, cl::NullRange, global, cl::NullRange );
 		
-		int num_itr = 50;
+		int num_itr = iterations;
 		float new_theta = theta;
 
 		for( int i=0; i<num_itr; i++)

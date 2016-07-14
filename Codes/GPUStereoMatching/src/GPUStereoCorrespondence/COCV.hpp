@@ -53,7 +53,8 @@ class COCV
 		float theta_gamma;
 		float lambda;
 		float gamma;
-		float eps;		
+		float eps;	
+		int n_itr;
 	};
 
 	/*! \brief Enumerates the memory objects handled by the class.
@@ -121,6 +122,7 @@ private:
     Staging staging;
     unsigned int width, height, bufferSize, costBufferSize;
 	unsigned int numLayers, d_min, d_max;
+	unsigned int iterations;
 	int radius;
 	float eps, alpha, beta, theta, theta_gamma, lambda, gamma;
     cl::Buffer hCostBufferIn, hImgBufferIn, hBufferOut;

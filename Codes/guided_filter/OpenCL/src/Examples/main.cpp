@@ -73,13 +73,13 @@ int main (int argc, char **argv)
         const float gfEps = std::pow (0.12, 2);
 
 		std::vector< std::string > kernel_files;
-		kernel_files.push_back("../Kernels/kernels.cl");
-		/*kernel_files.push_back( "../Kernels/imageSupport_kernels.cl" );
+		//kernel_files.push_back("../Kernels/kernels.cl");
+		kernel_files.push_back( "../Kernels/imageSupport_kernels.cl" );
 		kernel_files.push_back( "../Kernels/scan_kernels.cl" );
 	    kernel_files.push_back( "../Kernels/transpose_kernels.cl" );
 		kernel_files.push_back( "../Kernels/boxFilter_kernels.cl" );
 		kernel_files.push_back( "../Kernels/math_kernels.cl" );
-		kernel_files.push_back( "../Kernels/guidedFilter_kernels.cl" );*/
+		kernel_files.push_back( "../Kernels/guidedFilter_kernels.cl" );
 
         // Setup the OpenCL environment
         clutils::CLEnv clEnv (kernel_files);

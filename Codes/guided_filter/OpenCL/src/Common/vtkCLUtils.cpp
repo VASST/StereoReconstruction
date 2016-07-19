@@ -205,7 +205,6 @@ namespace clutils
                      std::vector<std::string> &sourceCodes)
     {
         std::ifstream programSource;
-
         try
         {
             for (auto &fName : kernel_filenames)
@@ -213,7 +212,7 @@ namespace clutils
                 programSource.exceptions (std::ifstream::failbit | std::ifstream::badbit);
                 programSource.open (fName, std::ios_base::end);
                 sourceCodes.emplace_back (std::istreambuf_iterator<char> (programSource), 
-                                         (std::istreambuf_iterator<char> ()));
+                                         (std::istreambuf_iterator<char> ())); 
                 programSource.close ();
             }
         }
@@ -294,7 +293,9 @@ namespace clutils
 
             // Create a program object from the source codes, targeting context 0
             programs.emplace_back (contexts[0], sources);
-			//std::cout << programs[0].getInfo<CL_PROGRAM_SOURCE>();
+			std::cout << programs[0].getInfo<CL_PROGRAM_SOURCE>();
+			//std::cout << sourceCodes.c_str() << std::endl;
+			
             try
             {
                 // Build the program for all devices in context 0 (platform 0)

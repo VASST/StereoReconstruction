@@ -49,9 +49,16 @@
 #include <opencv2/cudastereo.hpp>
 #include <opencv2/cudawarping.hpp>
 
+// PCL includes
+#include <pcl/point_cloud.h>
+#include <pcl/io/io.h>
+
 // For debugging
 void compute_cost_volume(cv::Mat *, cv::Mat *);
 cv::Mat get_ground_truth(const char *);
+
+// For visualization
+void MatToPointCloud(cv::Mat &, cv::Mat &, pcl::PointCloud<pcl::PointXYZRGBA> &);
 
 
 // Slider call-back
@@ -367,12 +374,15 @@ int main(int argc, char* argv)
 	cv::imshow("Debug", temp); */
 
 #ifdef VISUALIZE_POINTCLOUD
-	// TODO:
-		// Get the depth map from the disparity image and the calibration matrices
-			// Get the Q matrix from calibration matrices 
-			// Use reprojectImageTo3D to get the reprojected image
-		// Use PCL to genera a point cloud
-		// Texture map the point cloud using PCL
+
+	// Reproject points to 3D
+	cv::Mat_<cv::Vec3f> point_cloud( disparity_img_f.rows, disparity_img_f.cols);
+	cv::reprojectImageTo3D(disparity_img_f, point_cloud, Q, true, CV_32F );
+
+	// Use PCL to genera a point cloud
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud( new pcl::PointCloud<pcl::PointXYZRGBA> );
+
+	// Texture map the point cloud using PCL
 #endif
 
 	cv::waitKey(0); 
@@ -461,4 +471,11 @@ cv::Mat get_ground_truth(const char * filename)
 	cv::imshow("GT", out);
 
 	return out;
+}
+
+void MatToPointCloud(cv::Mat &m, cv::Mat &cal,  pcl::PointCloud<pcl::PointXYZRGBA> &pCloud)
+{
+	pCloud.width = m.cols;
+	pCloud.height = m.rows;
+
 }

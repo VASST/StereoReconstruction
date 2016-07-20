@@ -58,7 +58,7 @@ void compute_cost_volume(cv::Mat *, cv::Mat *);
 cv::Mat get_ground_truth(const char *);
 
 // For visualization
-void MatToPointCloud(cv::Mat &, cv::Mat &, pcl::PointCloud<pcl::PointXYZRGBA> &);
+void MatToPointCloud(cv::Mat &, cv::Mat &, pcl::PointCloud<pcl::PointXYZRGB>::Ptr);
 
 
 // Slider call-back
@@ -376,13 +376,16 @@ int main(int argc, char* argv)
 #ifdef VISUALIZE_POINTCLOUD
 
 	// Reproject points to 3D
-	cv::Mat_<cv::Vec3f> point_cloud( disparity_img_f.rows, disparity_img_f.cols);
-	cv::reprojectImageTo3D(disparity_img_f, point_cloud, Q, true, CV_32F );
+	cv::Mat_<cv::Vec3f> recons3D( disparity_img_f.rows, disparity_img_f.cols);
+	cv::reprojectImageTo3D(disparity_img_f, recons3D, Q, true, CV_32F );
 
-	// Use PCL to genera a point cloud
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud( new pcl::PointCloud<pcl::PointXYZRGBA> );
-
-	// Texture map the point cloud using PCL
+	// Create a point cloud
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr point_cloud( new pcl::PointCloud<pcl::PointXYZRGB> );
+	// Convert cv::Mat to PointCloud
+	MatToPointCloud(recons3D, imgL, point_cloud);
+	
+	//write PointCloud to file
+	// .. TODO
 #endif
 
 	cv::waitKey(0); 
@@ -473,9 +476,40 @@ cv::Mat get_ground_truth(const char * filename)
 	return out;
 }
 
-void MatToPointCloud(cv::Mat &m, cv::Mat &cal,  pcl::PointCloud<pcl::PointXYZRGBA> &pCloud)
+void MatToPointCloud(cv::Mat &recons3D, cv::Mat &rgb, pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloud)
 {
-	pCloud.width = m.cols;
-	pCloud.height = m.rows;
+	double px, py, pz;
+	uchar pr, pg, pb;
 
+	for(int i=0; i<recons3D.rows; i++)
+	{
+		double *recons_ptr = recons3D.ptr<double>(i);
+		uchar  *rgb_ptr    = rgb.ptr<uchar>(i);
+
+		for(int j=0; j<recons3D.cols; j++)
+		{
+
+			px = recons_ptr[3*j];
+			py = recons_ptr[3*j+1];
+			pz = recons_ptr[3*j+2];
+
+			// Set RGB info
+			pb = rgb_ptr[3*j];
+			pg = rgb_ptr[3*j+1];
+			pr = rgb_ptr[3*j+2];
+
+			// Insert info into point cloud structure
+			pcl::PointXYZRGB point;
+			point.x = px;
+			point.y = py;
+			point.z = pz;
+			uint32_t rgb = (static_cast<uint32_t>(pr) << 16 |
+              static_cast<uint32_t>(pg) << 8 | static_cast<uint32_t>(pb));
+			point.rgb = *reinterpret_cast<float*>(&rgb);
+			pCloud->push_back( point );
+		}
+	}
+
+	pCloud->width = (int) pCloud->points.size();
+	pCloud->height = 1;
 }

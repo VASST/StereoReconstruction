@@ -44,21 +44,28 @@
 #include <pgm.h>
 #include <JointWMF.hpp>
 
+// PCL includes
+#include <pcl/point_cloud.h>
+#include <pcl/io/io.h>
+#include <pcl/io/ply_io.h>
+//#include <pcl/io/pcd_io.h>
+//#include <pcl/point_types.h>
+
 // Opencv includes
 #include <opencv2/opencv.hpp>
 #include <opencv2/cudastereo.hpp>
 #include <opencv2/cudawarping.hpp>
-
-// PCL includes
-#include <pcl/point_cloud.h>
-#include <pcl/io/io.h>
 
 // For debugging
 void compute_cost_volume(cv::Mat *, cv::Mat *);
 cv::Mat get_ground_truth(const char *);
 
 // For visualization
+// Converts a cv::Mat to a pcl::PointCloud
 void MatToPointCloud(cv::Mat &, cv::Mat &, pcl::PointCloud<pcl::PointXYZRGB>::Ptr);
+
+//This function creates a PCL visualizer, sets the point cloud to view and returns a pointer
+//void createVisualizer (pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr cloud);
 
 
 // Slider call-back
@@ -132,8 +139,17 @@ int main(int argc, char* argv)
 	cv::Mat P2(3, 4, CV_64F);
 	cv::Mat Q(4, 4, CV_64F);
 
+	/* Q matrix is of the following form:
+		Q = [ 1 0 0 -cx; 0 1 0 -cy; 0 0  0 f; 0 0 -1/Tx (cx-c'x)/Tx ]; // where Tx is the baseline
+	 */
 	cv::stereoRectify(left_intrinsics, left_distortion_params, right_intrinsics, right_distortion_params, cv::Size(width, height), 
-						stereo_mat(cv::Rect(0, 0, 3, 3)), stereo_mat.row(3).t(), R1, R2, P1, P2, Q);
+						stereo_mat(cv::Rect(0, 0, 3, 3)), stereo_mat.row(3).t(), R1, R2, P1, P2, Q, 0);
+
+	std::cout << "t: " << stereo_mat.row(3).t() << std::endl;
+
+	std::cout << "P1: " << P1 << std::endl;
+	std::cout << "P2: " << P2 << std::endl;
+	std::cout << "Q: " << Q << std::endl;
 
 	cv::Mat mapxL( height, width, CV_32FC1 );
 	cv::Mat mapyL( height, width, CV_32FC1 );
@@ -376,8 +392,15 @@ int main(int argc, char* argv)
 #ifdef VISUALIZE_POINTCLOUD
 
 	// Reproject points to 3D
-	cv::Mat_<cv::Vec3f> recons3D( disparity_img_f.rows, disparity_img_f.cols);
-	cv::reprojectImageTo3D(disparity_img_f, recons3D, Q, true, CV_32F );
+	// The output of the COCV is a normalized disparity. Rescale this first. 
+	cv::Mat disparity_img( disparity_img_f.size(), disparity_img_f.type(), disparity_img_f.channels() );
+	disparity_img = d_max*disparity_img_f;
+	cv::minMaxIdx( disparity_img, &min, &max);
+
+	cv::Mat_<cv::Vec3f> recons3D( disparity_img.rows, disparity_img.cols);
+	cv::reprojectImageTo3D(disparity_img, recons3D, Q, false, CV_32F );
+	cv::minMaxIdx( recons3D, &min, &max);
+
 
 	// Create a point cloud
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr point_cloud( new pcl::PointCloud<pcl::PointXYZRGB> );
@@ -385,7 +408,12 @@ int main(int argc, char* argv)
 	MatToPointCloud(recons3D, imgL, point_cloud);
 	
 	//write PointCloud to file
-	// .. TODO
+	std::cout << " Writing point cloud to file.. " << std::endl;
+	pcl::PLYWriter plyWriter; 
+	if( !plyWriter.write("cloud.ply", *point_cloud, false, false ) )
+		std::cerr << "Failed to write point cloud to file " << std::endl;
+
+
 #endif
 
 	cv::waitKey(0); 
@@ -478,12 +506,12 @@ cv::Mat get_ground_truth(const char * filename)
 
 void MatToPointCloud(cv::Mat &recons3D, cv::Mat &rgb, pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloud)
 {
-	double px, py, pz;
+	float px, py, pz;
 	uchar pr, pg, pb;
 
 	for(int i=0; i<recons3D.rows; i++)
 	{
-		double *recons_ptr = recons3D.ptr<double>(i);
+		float *recons_ptr = recons3D.ptr<float>(i);
 		uchar  *rgb_ptr    = rgb.ptr<uchar>(i);
 
 		for(int j=0; j<recons3D.cols; j++)
@@ -492,6 +520,8 @@ void MatToPointCloud(cv::Mat &recons3D, cv::Mat &rgb, pcl::PointCloud<pcl::Point
 			px = recons_ptr[3*j];
 			py = recons_ptr[3*j+1];
 			pz = recons_ptr[3*j+2];
+
+			//std::cout << "px: " << px << ", py: " << py << ", pz: " << pz << std::endl;
 
 			// Set RGB info
 			pb = rgb_ptr[3*j];

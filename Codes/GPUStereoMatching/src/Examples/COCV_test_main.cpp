@@ -45,11 +45,10 @@
 #include <JointWMF.hpp>
 
 // PCL includes
-#include <pcl/point_cloud.h>
 #include <pcl/io/io.h>
 #include <pcl/io/ply_io.h>
-//#include <pcl/io/pcd_io.h>
-//#include <pcl/point_types.h>
+#include <pcl/point_types.h>
+
 
 // Opencv includes
 #include <opencv2/opencv.hpp>
@@ -409,8 +408,8 @@ int main(int argc, char* argv)
 	
 	//write PointCloud to file
 	std::cout << " Writing point cloud to file.. " << std::endl;
-	pcl::PLYWriter plyWriter; 
-	if( !plyWriter.write("cloud.ply", *point_cloud, false, false ) )
+	 
+	if( !pcl::io::savePLYFileASCII( "cloud.ply", *point_cloud ) )
 		std::cerr << "Failed to write point cloud to file " << std::endl;
 
 

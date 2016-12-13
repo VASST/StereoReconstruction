@@ -45,9 +45,9 @@
 #include <JointWMF.hpp>
 
 // PCL includes
-#include <pcl/io/io.h>
-#include <pcl/io/ply_io.h>
-#include <pcl/point_types.h>
+//#include <pcl/io/io.h>
+//#include <pcl/io/ply_io.h>
+//#include <pcl/point_types.h>
 
 
 // Opencv includes
@@ -55,13 +55,15 @@
 #include <opencv2/cudastereo.hpp>
 #include <opencv2/cudawarping.hpp>
 
+//#define VISUALIZE_POINTCLOUD
+
 // For debugging
 void compute_cost_volume(cv::Mat *, cv::Mat *);
 cv::Mat get_ground_truth(const char *);
 
 // For visualization
 // Converts a cv::Mat to a pcl::PointCloud
-void MatToPointCloud(cv::Mat &, cv::Mat &, pcl::PointCloud<pcl::PointXYZRGB>::Ptr);
+//void MatToPointCloud(cv::Mat &, cv::Mat &, pcl::PointCloud<pcl::PointXYZRGB>::Ptr);
 
 //This function creates a PCL visualizer, sets the point cloud to view and returns a pointer
 //void createVisualizer (pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr cloud);
@@ -80,7 +82,7 @@ const unsigned int radius = 5;
 const int d_max = 30; 
 const int d_min = 0;
 
-#define VISUALIZE_POINTCLOUD
+//#define VISUALIZE_POINTCLOUD
 
 int main(int argc, char* argv)
 {
@@ -503,6 +505,7 @@ cv::Mat get_ground_truth(const char * filename)
 	return out;
 }
 
+/*
 void MatToPointCloud(cv::Mat &recons3D, cv::Mat &rgb, pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloud)
 {
 	float px, py, pz;
@@ -542,3 +545,4 @@ void MatToPointCloud(cv::Mat &recons3D, cv::Mat &rgb, pcl::PointCloud<pcl::Point
 	pCloud->width = (int) pCloud->points.size();
 	pCloud->height = 1;
 }
+*/

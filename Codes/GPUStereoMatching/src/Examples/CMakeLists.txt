@@ -2,7 +2,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.0.0)
 
 project( Examples )
 
-find_package( PCL REQUIRED)
+#find_package( PCL REQUIRED)
 
 include_directories( ${PCL_INCLUDE_DIRS} )
 include_directories( ${OpenCV_INCLUDE_DIRS} )

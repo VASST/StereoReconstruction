@@ -203,7 +203,6 @@ namespace clutils
             }
         }
 
-
         /*! \brief Creates a new `CLEnvInfo` object with the specified command queue.
          *  \details Maintains the same OpenCL configuration, but chooses only one
          *           of the available command queues to include.

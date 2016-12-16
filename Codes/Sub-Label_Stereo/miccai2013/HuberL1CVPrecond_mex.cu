@@ -170,7 +170,6 @@ void mexFunction(int nlhs, mxArray *plhs[],
     checkCudaErrors(cudaMemcpy3D(&copyParams));
 
     checkCudaErrors(cudaBindTextureToArray(cost_volume_tex, cost_volume_array, channelDesc_float));
-    checkCudaErrors(cudaFree(cost_volume.ptr));
 
     ////////////////////////////////////////////////////////////////////////////
     //  Winnder-take-all (WTA) scheme to initialise disp
@@ -395,6 +394,19 @@ void mexFunction(int nlhs, mxArray *plhs[],
     plhs[5] = mxCreateNumericMatrix(host_pd_params.num_itr, 1, mxSINGLE_CLASS, mxREAL);
     copy(errors, errors+host_pd_params.num_itr, (float*)mxGetData(plhs[5]));
 
+    size_t cost_vol_dim[] = {width, height, host_cv_params.num_disp_layers};
+    mxGPUArray* cost_vol_mat = mxGPUCreateGPUArray(3, cost_vol_dim, mxSINGLE_CLASS, mxREAL, MX_GPU_DO_NOT_INITIALIZE);
+    cudaMemcpy3DParms copybackParams = {0};
+
+    copybackParams.srcPtr = cost_volume;
+    copybackParams.dstPtr = make_cudaPitchedPtr(mxGPUGetData(cost_vol_mat),width*sizeof(float), width, height);  
+    copybackParams.extent.width = width*sizeof(float);
+    copybackParams.extent.height = height;
+    copybackParams.extent.depth = host_cv_params.num_disp_layers;    
+    copybackParams.kind   = cudaMemcpyDeviceToDevice;
+    checkCudaErrors(cudaMemcpy3D(&copybackParams));
+    plhs[6] = mxGPUCreateMxArrayOnGPU(cost_vol_mat); 
+
     /* Free CUDA memory */
     checkCudaErrors(cudaFree(min_disp.ptr));
     checkCudaErrors(cudaFree(min_disp_cost.ptr));
@@ -415,4 +427,6 @@ void mexFunction(int nlhs, mxArray *plhs[],
     checkCudaErrors(cudaFreeArray(cost_volume_array));
     checkCudaErrors(cudaFreeArray(left_img_array));
     checkCudaErrors(cudaFreeArray(right_img_array));
+
+    checkCudaErrors(cudaFree(cost_volume.ptr));
 }

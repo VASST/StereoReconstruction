@@ -251,6 +251,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
             k++;
           }
         }
+                
 
         // compute convex envelope
         size_t num_pts;

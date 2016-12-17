@@ -1,7 +1,8 @@
 %% Stereo matching with sublabel accurate lifting (see Fig. 1 and 6 in the paper)
 
 % Add prost path
-addpath('C:\Libs\build\prost\matlab')
+addpath('C:\Libs\build\prost\matlab\Debug')
+addpath('C:\Libs\src\prost\matlab')
 
 %% compute matching cost
 ndisps = 150;

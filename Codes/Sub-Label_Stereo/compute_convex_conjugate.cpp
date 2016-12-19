@@ -228,6 +228,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
         while((sublabels[j] < labels[i + 1]) && (j < nz)) {
           points_x[k] = sublabels[j];
+		  double  v = vals[y + ny * x + j * ny * nx];
           points_y[k] = vals[y + ny * x + j * ny * nx]; // non-convex energy
 
           k++;

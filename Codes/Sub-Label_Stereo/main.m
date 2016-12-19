@@ -23,22 +23,22 @@ if(~exist(['HuberL1CVPrecond_mex.',mexext]))
 end
 
 % Matching method
-method = 'sublabel_lifting';
+method = 'miccai2013';
 
 
 if(gpu_enable)
     
     % Read-in input images
-    left_img_file = './images/im-dL.png';
-    right_img_file = './images/im-dR.png';
+    left_img_file = './images/lap-heart1.png';
+    right_img_file = './images/lap-heart2.png';
     
     left_img = im2single(rgb2gray(imread(left_img_file)));
     right_img = im2single(rgb2gray(imread(right_img_file)));                    
         
     % Cost volume parameters
     CostVolumeParams = struct('min_disp', uint8(0), ...
-                             'max_disp', uint8(64), ...
-                             'method', 'ad', ...
+                             'max_disp', uint8(32), ...
+                             'method', 'zncc', ...
                              'win_r', uint8(4), ...
                              'ref_left', true);
                          
@@ -51,10 +51,10 @@ if(strcmp(method, 'miccai2013'))
     disp(s);
 
     PrimalDualParams = struct('num_itr', uint32(100), ...
-                              'alpha', single(10.0), ...
+                              'alpha', single(0.5), ...
                               'beta', single(1.0), ...
                               'epsilon', single(0.1), ...
-                              'lambda', single(1e-3), ...
+                              'lambda', single(0.02), ...
                               'aux_theta', single(10), ...
                               'aux_theta_gamma', single(1e-6));
     tic 
@@ -65,12 +65,17 @@ if(strcmp(method, 'miccai2013'))
     opt_disp = gather(primal);   
     opt_disp = (opt_disp-min(min(opt_disp)))/(max(max(opt_disp)) - min(min(opt_disp)));
     
+    num_colors = 65536;
+    cmap = jet(num_colors);
+    cmap_index = 1 + round(opt_disp * (num_colors - 1));
+    image_rgb = reshape(cmap(cmap_index,:),size(opt_disp,1),size(opt_disp,2),3);
+    imshow(image_rgb); 
+    
     err = gather(errors_precond);
     
-    if(~exist('cost_volume.mat'))
-        cost_volume = gather(cost);
-        save('cost_volume.mat', 'cost_volume');
-    end
+    % Save the cost volume
+    cost_volume = gather(cost);
+    save('cost_volume.mat', 'cost_volume');
     
         
     figure;
@@ -102,16 +107,16 @@ elseif(strcmp(method, 'sublabel_lifting'))
     end
      
         %% setup parameters
-        L = 16;
+        L = 32;
         gamma = linspace(0, 1, L)'; 
         lmb = 0.3;
 
         %% solve problem and display result
         tic;
-        [u_unlifted] = sublabel_lifting_convex(cost_volume, gamma, lmb);
+        [u_unlifted] = sublabel_lifting_convex(double(cost_volume), gamma, lmb);
         toc;
 
-        [ny, nx, ~] = size(stereo_cost);  
+        [ny, nx, ~] = size(cost_volume);  
         u_unlifted = min(max(u_unlifted, 0), 1);
         num_colors = 65536;
         cmap = jet(num_colors);

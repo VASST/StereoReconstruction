@@ -32,11 +32,24 @@ if(gpu_enable)
     left_img_file = './images/lap-heart1.png';
     right_img_file = './images/lap-heart2.png';
     
-    left_img = im2single(rgb2gray(imread(left_img_file)));
-    right_img = im2single(rgb2gray(imread(right_img_file)));                    
+    % Read-in video
+    left_frames = read_video_file('./images/f7_dynamic_deint_L.avi');
+    right_frames = read_video_file('./images/f7_dynamic_deint_R.avi');
+    ground_truth_prefix = './images/f7_dynamic_deint/disparityMap_';
+    
+    %left_img = im2single(rgb2gray(imread(left_img_file)));
+    %right_img = im2single(rgb2gray(imread(right_img_file))); 
+    frame_no = 1;
+    left_img = im2single(rgb2gray(left_frames(:,:,:,frame_no)));
+    right_img = im2single(rgb2gray((right_frames(:,:,:,frame_no))));
+    width = size(left_img, 2);
+    height = size(left_img, 1);
+    true_disparity = read_ground_truth_disparity([ground_truth_prefix, num2str(frame_no-1),...
+                                                    '.txt'], ...
+                                                      width, height);
         
     % Cost volume parameters
-    CostVolumeParams = struct('min_disp', uint8(0), ...
+    CostVolumeParams = struct('min_disp', uint8(5), ...
                              'max_disp', uint8(32), ...
                              'method', 'zncc', ...
                              'win_r', uint8(4), ...
@@ -54,7 +67,7 @@ if(strcmp(method, 'miccai2013'))
                               'alpha', single(0.5), ...
                               'beta', single(1.0), ...
                               'epsilon', single(0.1), ...
-                              'lambda', single(0.02), ...
+                              'lambda', single(0.5), ...
                               'aux_theta', single(10), ...
                               'aux_theta_gamma', single(1e-6));
     tic 
@@ -107,7 +120,7 @@ elseif(strcmp(method, 'sublabel_lifting'))
     end
      
         %% setup parameters
-        L = 32;
+        L = 16;
         gamma = linspace(0, 1, L)'; 
         lmb = 0.3;
 

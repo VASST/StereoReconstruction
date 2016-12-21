@@ -8,6 +8,7 @@ addpath('C:\Libs\src\prost\matlab')
 
 % clear screen 
 clc
+close all
 
 gpu_enable = false;
 if(gpuDeviceCount > 0)
@@ -40,16 +41,55 @@ if(gpu_enable)
     right_frames = read_video_file('./images/f7_dynamic_deint_R.avi');
     ground_truth_prefix = './images/f7_dynamic_deint/disparityMap_';
     
-    %left_img = im2single(rgb2gray(imread(left_img_file)));
-    %right_img = im2single(rgb2gray(imread(right_img_file))); 
-    frame_no = 1;
-    left_img = im2single(rgb2gray(left_frames(:,:,:,frame_no)));
-    right_img = im2single(rgb2gray((right_frames(:,:,:,frame_no))));
+    % Set camera params
+    left_intrinsics = [391.656525, 0.000000, 165.964371; 
+                       0.000000, 426.835144, 154.498138;  
+                       0.000000, 0.000000, 1.000000];
+    left_distortions = [-0.196312 0.129540 0.004356 0.006236];
+    
+    right_intrinsics = [390.376862 0.000000 190.896454;
+                        0.000000 426.228882 145.071411;
+                        0.000000 0.000000 1.000000];
+    right_distortions = [-0.205824 0.186125 0.015374 0.003660];
+    
+    stereo_cam_rot = [0.999999 -0.001045 -0.000000;
+                      0.001045 0.999999 -0.000000;
+                      0.000000 0.000000 1.000000];
+                  
+    stereo_cam_trans = [-5.520739 -0.031516 -0.051285];
+    
+    left_cam_params = cameraParameters('IntrinsicMatrix', left_intrinsics', ...
+                                        'RadialDistortion', left_distortions(1:2), ...
+                                        'TangentialDistortion', left_distortions(3:4));
+   
+    right_cam_params = cameraParameters('IntrinsicMatrix', right_intrinsics', ...
+                                        'RadialDistortion', right_distortions(1:2), ...
+                                        'TangentialDistortion', right_distortions(3:4));
+    
+    stereo_params = stereoParameters(left_cam_params,...
+                                    right_cam_params,...
+                                    stereo_cam_rot, ...
+                                    stereo_cam_trans');   
+                                
+                                
+    frame_no = 10;
+    I1 = im2single(rgb2gray(left_frames(:,:,:,frame_no)));
+    I2 = im2single(rgb2gray((right_frames(:,:,:,frame_no))));
+    
+    % Rectify images
+    disp('Rectifying image...');
+    [left_img, right_img] = rectifyStereoImages(I1, I2, stereo_params, 'OutputView', 'valid');
+    figure, imshowpair(left_img, right_img, 'montage');
+    title('Input Images')
+    figure, imshowpair(left_img, right_img, 'falsecolor', 'ColorChannels', 'red-cyan');
+                                  
+    
     width = size(left_img, 2);
     height = size(left_img, 1);
     true_disparity = read_ground_truth_disparity([ground_truth_prefix, num2str(frame_no-1),...
                                                     '.txt'], ...
-                                                      width, height);
+                                                      size(I1,2), size(I1,1));
+                                                  
         
     % Cost volume parameters
     CostVolumeParams = struct('min_disp', uint8(0), ...
@@ -66,43 +106,16 @@ if(strcmp(method, 'miccai2013'))
                                                           CostVolumeParams.max_disp - CostVolumeParams.min_disp);
     disp(s);
 
-    PrimalDualParams = struct('num_itr', uint32(150), ...
-                              'alpha', single(5.0), ...
-                              'beta', single(1.0), ...
-                              'epsilon', single(0.1), ...
-                              'lambda', single(1e-3), ...
-                              'aux_theta', single(10), ...
-                              'aux_theta_gamma', single(1e-6));
-    tic 
-    [d, primal, dual, primal_step, dual_step, errors_precond, cost] =  HuberL1CVPrecond_mex(left_img, right_img, CostVolumeParams, PrimalDualParams);
-    t = toc;
+    [disparity, disparity_color, err] = StereoReconstHuberL1(left_img, right_img, CostVolumeParams);
     
-    err = gather(errors_precond);
-    
-    % Save the cost volume
-    cost_volume = gather(cost);
-    save('cost_volume.mat', 'cost_volume');
-    
-    % Fetch output from GPU
-    opt_disp = gather(primal);   
-    opt_disp = (opt_disp-min(min(opt_disp)))/(max(max(opt_disp)) - min(min(opt_disp)));
-    diff_disp = repmat((CostVolumeParams.max_disp - CostVolumeParams.min_disp), size(opt_disp,1), size(opt_disp,2));
-    min_disp  = repmat(CostVolumeParams.min_disp, size(opt_disp,1), size(opt_disp,2));
-    disparity = opt_disp.*single(diff_disp) + single(min_disp);
-       
-    % Plot
-    num_colors = 65536;
-    cmap = jet(num_colors);
-    [nx, ny] = size(left_img);
-    cmap_index = 1 + round(reshape(opt_disp, 1, nx*ny)* (num_colors - 1));
-    image_rgb = reshape(cmap(cmap_index,:),size(opt_disp,1),size(opt_disp,2),3);
-    figure, imshow(image_rgb);  
-    
-    figure, imshow(mat2gray(true_disparity))
-    title('Truth')
-    
+    % Plot results
     figure;
     imshow(mat2gray(disparity));
+    
+    figure, imshow(disparity_color);  
+    
+    figure, imshow(mat2gray(true_disparity))
+    title('Truth')    
         
     figure;
     plot(err, 'g');    
@@ -110,9 +123,6 @@ if(strcmp(method, 'miccai2013'))
     legend('HuberL1+Cost-Volume');
     xlabel('Iterations');
     ylabel('Energy function');
-    
-    s = sprintf('Elapsed time %fs', t);
-    disp(s)
 
 elseif(strcmp(method, 'sublabel_lifting')) 
 %% Functional Lifting
@@ -130,7 +140,7 @@ elseif(strcmp(method, 'sublabel_lifting'))
     end
      
         %% setup parameters
-        L = 16;
+        L = 32;
         gamma = linspace(0, 1, L)'; 
         lmb = 0.3;
 
@@ -145,10 +155,11 @@ elseif(strcmp(method, 'sublabel_lifting'))
         cmap = jet(num_colors);
         cmap_index = 1 + round(u_unlifted * (num_colors - 1));
         image_rgb = reshape(cmap(cmap_index,:),ny,nx,3);
+        imshow(image_rgb)
         
-        cmap_index = 1 + round(true_disparity*(num_colors-1));
-        true_map = reshape(cmap(cmap_index,:),ny,nx,3);
-        imshowpair(true_disparity, reshape(u_unlifted, ny, nx), 'montage');       
+%         cmap_index = 1 + round(true_disparity*(num_colors-1));
+%         true_map = reshape(cmap(cmap_index,:),ny,nx,3);
+%         imshowpair(true_disparity, reshape(u_unlifted, ny, nx), 'montage');       
         
         
     else

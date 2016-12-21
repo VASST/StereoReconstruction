@@ -29,8 +29,11 @@ method = 'miccai2013';
 if(gpu_enable)
     
     % Read-in input images
-    left_img_file = './images/lap-heart1.png';
-    right_img_file = './images/lap-heart2.png';
+%     left_img_file = './images/im-dL.png';
+%     right_img_file = './images/im-dR.png';
+%     
+%     left_img = im2single(rgb2gray(imread(left_img_file)));
+%     right_img = im2single(rgb2gray(imread(right_img_file)));
     
     % Read-in video
     left_frames = read_video_file('./images/f7_dynamic_deint_L.avi');
@@ -49,7 +52,7 @@ if(gpu_enable)
                                                       width, height);
         
     % Cost volume parameters
-    CostVolumeParams = struct('min_disp', uint8(5), ...
+    CostVolumeParams = struct('min_disp', uint8(0), ...
                              'max_disp', uint8(32), ...
                              'method', 'zncc', ...
                              'win_r', uint8(4), ...
@@ -63,26 +66,16 @@ if(strcmp(method, 'miccai2013'))
                                                           CostVolumeParams.max_disp - CostVolumeParams.min_disp);
     disp(s);
 
-    PrimalDualParams = struct('num_itr', uint32(100), ...
-                              'alpha', single(0.5), ...
+    PrimalDualParams = struct('num_itr', uint32(150), ...
+                              'alpha', single(5.0), ...
                               'beta', single(1.0), ...
                               'epsilon', single(0.1), ...
-                              'lambda', single(0.5), ...
+                              'lambda', single(1e-3), ...
                               'aux_theta', single(10), ...
                               'aux_theta_gamma', single(1e-6));
     tic 
     [d, primal, dual, primal_step, dual_step, errors_precond, cost] =  HuberL1CVPrecond_mex(left_img, right_img, CostVolumeParams, PrimalDualParams);
     t = toc;
-    
-    % Fetch output from GPU
-    opt_disp = gather(primal);   
-    opt_disp = (opt_disp-min(min(opt_disp)))/(max(max(opt_disp)) - min(min(opt_disp)));
-    
-    num_colors = 65536;
-    cmap = jet(num_colors);
-    cmap_index = 1 + round(opt_disp * (num_colors - 1));
-    image_rgb = reshape(cmap(cmap_index,:),size(opt_disp,1),size(opt_disp,2),3);
-    imshow(image_rgb); 
     
     err = gather(errors_precond);
     
@@ -90,9 +83,26 @@ if(strcmp(method, 'miccai2013'))
     cost_volume = gather(cost);
     save('cost_volume.mat', 'cost_volume');
     
-        
+    % Fetch output from GPU
+    opt_disp = gather(primal);   
+    opt_disp = (opt_disp-min(min(opt_disp)))/(max(max(opt_disp)) - min(min(opt_disp)));
+    diff_disp = repmat((CostVolumeParams.max_disp - CostVolumeParams.min_disp), size(opt_disp,1), size(opt_disp,2));
+    min_disp  = repmat(CostVolumeParams.min_disp, size(opt_disp,1), size(opt_disp,2));
+    disparity = opt_disp.*single(diff_disp) + single(min_disp);
+       
+    % Plot
+    num_colors = 65536;
+    cmap = jet(num_colors);
+    [nx, ny] = size(left_img);
+    cmap_index = 1 + round(reshape(opt_disp, 1, nx*ny)* (num_colors - 1));
+    image_rgb = reshape(cmap(cmap_index,:),size(opt_disp,1),size(opt_disp,2),3);
+    figure, imshow(image_rgb);  
+    
+    figure, imshow(mat2gray(true_disparity))
+    title('Truth')
+    
     figure;
-    imshow(opt_disp);
+    imshow(mat2gray(disparity));
         
     figure;
     plot(err, 'g');    
@@ -135,7 +145,10 @@ elseif(strcmp(method, 'sublabel_lifting'))
         cmap = jet(num_colors);
         cmap_index = 1 + round(u_unlifted * (num_colors - 1));
         image_rgb = reshape(cmap(cmap_index,:),ny,nx,3);
-        imshow(image_rgb);       
+        
+        cmap_index = 1 + round(true_disparity*(num_colors-1));
+        true_map = reshape(cmap(cmap_index,:),ny,nx,3);
+        imshowpair(true_disparity, reshape(u_unlifted, ny, nx), 'montage');       
         
         
     else

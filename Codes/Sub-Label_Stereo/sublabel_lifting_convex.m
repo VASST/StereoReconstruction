@@ -78,7 +78,6 @@ function [u_unlifted] = sublabel_lifting_convex(cost_volume, gamma, lmb)
     %% solve problem
     solution = prost.solve(problem, backend, opts);
 
-
     %% obtain result via layer-cake
     u_volume = reshape(u.val, [k, N]);
     u_unlifted = sum(u_volume, 1) * (gamma(2) - gamma(1));

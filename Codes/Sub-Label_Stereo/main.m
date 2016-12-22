@@ -123,6 +123,10 @@ if(strcmp(method, 'miccai2013'))
     legend('HuberL1+Cost-Volume');
     xlabel('Iterations');
     ylabel('Energy function');
+    
+    % Reconstruct the 3D-world coordinates
+    xyzPoints = reconstructScene(disparity, stereo_params);
+    pcshow(xyzPoints);
 
 elseif(strcmp(method, 'sublabel_lifting')) 
 %% Functional Lifting

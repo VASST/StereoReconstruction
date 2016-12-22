@@ -394,6 +394,11 @@ void mexFunction(int nlhs, mxArray *plhs[],
     plhs[5] = mxCreateNumericMatrix(host_pd_params.num_itr, 1, mxSINGLE_CLASS, mxREAL);
     copy(errors, errors+host_pd_params.num_itr, (float*)mxGetData(plhs[5]));
 
+    size_t aux_dim[] = {width, height};
+    mxGPUArray* aux_mat = mxGPUCreateGPUArray(2, aux_dim, mxSINGLE_CLASS, mxREAL, MX_GPU_DO_NOT_INITIALIZE);
+    checkCudaErrors(cudaMemcpy2D(mxGPUGetData(aux_mat), width*sizeof(Auxiliary), aux.ptr, aux.pitch, width*sizeof(Auxiliary), height, cudaMemcpyDeviceToDevice));
+    plhs[6] = mxGPUCreateMxArrayOnGPU(aux_mat);
+
     size_t cost_vol_dim[] = {width, height, host_cv_params.num_disp_layers};
     mxGPUArray* cost_vol_mat = mxGPUCreateGPUArray(3, cost_vol_dim, mxSINGLE_CLASS, mxREAL, MX_GPU_DO_NOT_INITIALIZE);
     cudaMemcpy3DParms copybackParams = {0};
@@ -405,7 +410,7 @@ void mexFunction(int nlhs, mxArray *plhs[],
     copybackParams.extent.depth = host_cv_params.num_disp_layers;    
     copybackParams.kind   = cudaMemcpyDeviceToDevice;
     checkCudaErrors(cudaMemcpy3D(&copybackParams));
-    plhs[6] = mxGPUCreateMxArrayOnGPU(cost_vol_mat); 
+    plhs[7] = mxGPUCreateMxArrayOnGPU(cost_vol_mat); 
 
     /* Free CUDA memory */
     checkCudaErrors(cudaFree(min_disp.ptr));

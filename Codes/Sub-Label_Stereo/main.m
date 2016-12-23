@@ -7,6 +7,7 @@ addpath('C:\Libs\src\prost\matlab')
 % clear screen 
 clc
 close all
+clear all
 
 gpu_enable = false;
 if(gpuDeviceCount > 0)
@@ -22,8 +23,8 @@ if(~exist(['HuberL1CVPrecond_mex.',mexext]))
 end
 
 % Matching method
-method = 'miccai2013';
-enable_comparison_with_ground_truth = false;
+method = 'sublabel_lifting';
+enable_comparison_with_ground_truth = true;
 enable_saving_output_to_video = false;
 
 
@@ -98,6 +99,9 @@ if(gpu_enable)
              true_disparity = read_ground_truth_disparity([ground_truth_prefix, num2str(frame_no-1),...
                                                         '.txt'], ...
                                                           size(I1,2), size(I1,1));
+             % Do this so that we can compare the true_disparity to the
+             % computed one. 
+             [true_disparity, tmp] = rectifyStereoImages(single(true_disparity), I2, stereo_params, 'OutputView', 'valid');
         end
 
 
@@ -160,23 +164,21 @@ if(gpu_enable)
                 'images/im-dR.png', ndisps, 1, 1);
             end
 
-                %% setup parameters
-                L = 32;
-                gamma = linspace(0, 1, L)'; 
-                lmb = 0.3;
+
 
                 %% solve problem and display result
-                tic;
-                [u_unlifted] = sublabel_lifting_convex(double(cost_volume), gamma, lmb);
-                toc;
+                [disparity, disparity_color] = StereoReconst_Sublabel_Lifting(cost_volume,...
+                                                                               CostVolumeParams);
+                                             
+                % Plot
+                figure, imshow(mat2gray(disparity));
+                
+                figure, imshow(disparity_color)
+                
+                % Reconstruct the 3D-world coordinates
+                xyzPoints = reconstructScene(disparity, stereo_params);
+                figure, pcshow(xyzPoints);
 
-                [ny, nx, ~] = size(cost_volume);  
-                u_unlifted = min(max(u_unlifted, 0), 1);
-                num_colors = 65536;
-                cmap = jet(num_colors);
-                cmap_index = 1 + round(u_unlifted * (num_colors - 1));
-                image_rgb = reshape(cmap(cmap_index,:),ny,nx,3);
-                imshow(image_rgb)
 
         %         cmap_index = 1 + round(true_disparity*(num_colors-1));
         %         true_map = reshape(cmap(cmap_index,:),ny,nx,3);

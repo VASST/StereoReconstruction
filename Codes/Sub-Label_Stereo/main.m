@@ -23,7 +23,7 @@ if(~exist(['HuberL1CVPrecond_mex.',mexext]))
 end
 
 % Matching method
-method = 'sublabel_lifting';
+method = 'miccai2013';
 enable_comparison_with_ground_truth = true;
 enable_saving_output_to_video = false;
 
@@ -87,6 +87,12 @@ if(gpu_enable)
         % Rectify images
         disp('Rectifying image...');
         [left_img, right_img] = rectifyStereoImages(I1, I2, stereo_params, 'OutputView', 'valid');
+        % Threshold the images to remove very dark regions
+        th = 20/255;
+        mask = find(left_img<th);
+        left_img(left_img<th) = 0;
+        right_img(right_img<th) = 0;
+        
         figure, imshowpair(left_img, right_img, 'montage');
         title('Input Images')
         figure, imshowpair(left_img, right_img, 'falsecolor', 'ColorChannels', 'red-cyan');
@@ -125,6 +131,10 @@ if(gpu_enable)
             % Plot results
             figure;
             imshow(mat2gray(disparity));
+            
+            figure, 
+            disparity(mask) = 0;
+            imshow(mat2gray(disparity))
 
             figure, imshow(disparity_color);  
 

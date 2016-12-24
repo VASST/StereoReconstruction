@@ -23,7 +23,7 @@ if(~exist(['HuberL1CVPrecond_mex.',mexext]))
 end
 
 % Matching method
-method = 'miccai2013';
+method = 'sublabel_lifting';
 enable_comparison_with_ground_truth = true;
 enable_saving_output_to_video = false;
 
@@ -88,7 +88,7 @@ if(gpu_enable)
         disp('Rectifying image...');
         [left_img, right_img] = rectifyStereoImages(I1, I2, stereo_params, 'OutputView', 'valid');
         % Threshold the images to remove very dark regions
-        th = 20/255;
+        th = 15/255;
         mask = find(left_img<th);
         left_img(left_img<th) = 0;
         right_img(right_img<th) = 0;
@@ -154,6 +154,13 @@ if(gpu_enable)
             xyzPoints = reconstructScene(disparity, stereo_params);
             pc_handle = pcshow(xyzPoints);
             
+            d1 = disparity(83:243, 52:247);
+            d2 = true_disparity(83:243, 52:247);
+            x = d1 - d2;
+            s = sprintf('Disparity error : %f(mean), %f(std)\n' ,mean2(x),...
+                                std2(x));
+            disp(s);
+            
             if enable_saving_output_to_video
                 f = getframe(gcf);
                 writeVideo(writerObj, f);   
@@ -188,6 +195,14 @@ if(gpu_enable)
                 % Reconstruct the 3D-world coordinates
                 xyzPoints = reconstructScene(disparity, stereo_params);
                 figure, pcshow(xyzPoints);
+                
+                % Compare to the GT
+                d1 = disparity(83:243, 52:247);
+                d2 = true_disparity(83:243, 52:247);
+                x = d1 - d2;
+                s = sprintf('Disparity error : %f(mean), %f(std)\n' ,mean2(x),...
+                                std2(x));
+                disp(s);
 
 
         %         cmap_index = 1 + round(true_disparity*(num_colors-1));

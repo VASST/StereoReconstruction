@@ -22,6 +22,11 @@ if(~exist(['HuberL1CVPrecond_mex.',mexext]))
    compile_HuberL1CVPrecond_mex
 end
 
+if(~exist(['compute_convex_conjugate_mex.', mexext]))
+    % compile compute_convex_conjugate
+    mex compute_convex_conjugate.cpp
+end
+
 % Matching method
 method = 'sublabel_lifting';
 enable_comparison_with_ground_truth = true;

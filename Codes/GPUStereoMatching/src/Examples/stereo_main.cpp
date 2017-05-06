@@ -97,7 +97,7 @@ int main(int argc, char* argv)
 
 	const unsigned int gfRadius = 5;
     const float gfEps = 0.1;
-	const int d_max = 30; 
+	const int d_max = 60; 
 	const int d_min = 10;
 
 	CostVolume::Settings CV_Settings;

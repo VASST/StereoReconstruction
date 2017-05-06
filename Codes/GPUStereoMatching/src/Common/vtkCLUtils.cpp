@@ -281,7 +281,7 @@ namespace clutils
 
             // Create a command queue for device 0 in platform 0
             queues.emplace_back ();
-            queues[0].emplace_back (contexts[0], devices[0][1]);
+            queues[0].emplace_back (contexts[0], devices[0][0]);
 
             // Read in the program sources
             std::vector<std::string> sourceCodes;

@@ -79,8 +79,8 @@ cl_float *disparity;
 cv::Mat cost;
 
 const unsigned int radius = 5;
-const int d_max = 30; 
-const int d_min = 0;
+const int d_max = 60; 
+const int d_min = 10;
 
 //#define VISUALIZE_POINTCLOUD
 
@@ -94,10 +94,10 @@ int main(int argc, char* argv)
 	//cv::Mat imgR = cv::imread("../Data/im-dL.png");
 	//cv::Mat imgL = cv::imread("../Data/tsukuba/imL.png");
 	//cv::Mat imgR = cv::imread("../Data/tsukuba/imR.png");
-	//cv::Mat imgL = cv::imread("../Data/teddy/im-dL.png");
-	//cv::Mat imgR = cv::imread("../Data/teddy/im-dR.png");
-	cv::Mat imgL = cv::imread("../Data/lap-heart1.png");
-	cv::Mat imgR = cv::imread("../Data/lap-heart2.png");
+	cv::Mat imgL = cv::imread("../Data/teddy/im-dL.png");
+	cv::Mat imgR = cv::imread("../Data/teddy/im-dR.png");
+	//cv::Mat imgL = cv::imread("../Data/lap-heart1.png");
+	//cv::Mat imgR = cv::imread("../Data/lap-heart2.png");
 
 	width = imgL.cols;  height = imgL.rows;
 	const unsigned int bufferSize = width * height * sizeof (cl_float);
